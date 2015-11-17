@@ -237,6 +237,13 @@ Properties	string State [readonly]
 			indicates connections to a foreign provider when
 			traveling abroad.
 
+		string  Multipath [readwrite]
+
+			This property changes multipath link mode (for
+			mutlipath tcp).
+
+			Possible values are "off", "on" and "backup".
+
 		array{string} Nameservers [readonly]
 
 			The list of currently active nameservers for this

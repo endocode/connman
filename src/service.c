@@ -34,6 +34,7 @@
 #include <connman/storage.h>
 #include <connman/setting.h>
 #include <connman/agent.h>
+#include <connman/multipath.h>
 
 #include "connman.h"
 
@@ -121,6 +122,7 @@ struct connman_service {
 	bool wps;
 	int online_check_count;
 	bool do_split_routing;
+	enum connman_multipath_state mpath;
 	bool new_service;
 	bool hidden_service;
 	char *config_file;
@@ -360,6 +362,34 @@ static void set_split_routing(struct connman_service *service, bool value)
 		service->order = 10;
 }
 
+static const char *mpathstate2string(enum connman_multipath_state state)
+{
+	switch (state) {
+	case CONNMAN_MULTIPATH_STATE_OFF:
+		return "off";
+	case CONNMAN_MULTIPATH_STATE_ON:
+		return "on";
+	case CONNMAN_MULTIPATH_STATE_BACKUP:
+		return "backup";
+	case CONNMAN_MULTIPATH_STATE_UNKNOWN:
+		break;
+	}
+
+	return NULL;
+}
+
+static enum connman_multipath_state string2mpathstate(const char *state)
+{
+	if (g_strcmp0(state, "off") == 0)
+		return CONNMAN_MULTIPATH_STATE_OFF;
+	else if (g_strcmp0(state, "on") == 0)
+		return CONNMAN_MULTIPATH_STATE_ON;
+	else if (g_strcmp0(state, "backup") == 0)
+		return CONNMAN_MULTIPATH_STATE_BACKUP;
+
+	return CONNMAN_MULTIPATH_STATE_UNKNOWN;
+}
+
 int __connman_service_load_modifiable(struct connman_service *service)
 {
 	GKeyFile *keyfile;
@@ -565,6 +595,13 @@ static int service_load(struct connman_service *service)
 
 	g_free(str);
 
+	str = g_key_file_get_string(keyfile,
+				service->identifier, "Multipath", NULL);
+	if (str)
+		service->mpath = string2mpathstate(str);
+
+	g_free(str);
+
 	service->proxies = g_key_file_get_string_list(keyfile,
 			service->identifier, "Proxy.Servers", &length, NULL);
 	if (service->proxies && length == 0) {
@@ -748,6 +785,11 @@ static int service_save(struct connman_service *service)
 	} else
 		g_key_file_remove_key(keyfile, service->identifier,
 						"Proxy.Servers", NULL);
+
+	cst_str = mpathstate2string(service->mpath);
+	if (cst_str)
+		g_key_file_set_string(keyfile, service->identifier,
+				      "Multipath", cst_str);
 
 	if (service->excludes) {
 		guint len = g_strv_length(service->excludes);
@@ -2313,6 +2355,11 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 	connman_dbus_dict_append_basic(dict, "Immutable",
 					DBUS_TYPE_BOOLEAN, &val);
 
+	str = mpathstate2string(service->mpath);
+	if (str)
+		connman_dbus_dict_append_basic(dict, "Multipath",
+						DBUS_TYPE_STRING, &str);
+
 	if (service->favorite)
 		val = service->autoconnect;
 	else
@@ -3502,6 +3549,22 @@ static DBusMessage *set_property(DBusConnection *conn,
 			__connman_network_enable_ipconfig(service->network,
 							service->ipconfig_ipv6);
 		}
+
+		service_save(service);
+	} else if (g_str_equal(name, "Multipath")) {
+		const char *state;
+		struct connman_device *device;
+		int if_index;
+
+		if (type != DBUS_TYPE_STRING)
+			return __connman_error_invalid_arguments(msg);
+
+		dbus_message_iter_get_basic(&value, &state);
+		service->mpath = string2mpathstate(state);
+
+		device = connman_network_get_device(service->network);
+		if_index = connman_device_get_index(device);
+		__connman_multipath_set(if_index, service->mpath);
 
 		service_save(service);
 	} else
