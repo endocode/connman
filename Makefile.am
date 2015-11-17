@@ -11,7 +11,8 @@ include_HEADERS = include/log.h include/plugin.h \
 			include/device.h include/network.h include/inet.h \
 			include/storage.h include/provision.h \
 			include/session.h include/ipaddress.h include/agent.h \
-			include/inotify.h include/peer.h include/machine.h
+			include/inotify.h include/peer.h include/machine.h \
+			include/multipath.h
 
 nodist_include_HEADERS = include/version.h
 
@@ -117,7 +118,7 @@ src_connmand_SOURCES = $(gdhcp_sources) $(gweb_sources) $(backtrace_sources) \
 			src/resolver.c src/ipconfig.c src/detect.c src/inet.c \
 			src/dhcp.c src/dhcpv6.c src/rtnl.c src/proxy.c \
 			src/utsname.c src/timeserver.c src/rfkill.c \
-			src/storage.c src/dbus.c src/config.c \
+			src/storage.c src/dbus.c src/config.c src/multipath.c \
 			src/technology.c src/counter.c src/ntp.c \
 			src/session.c src/tethering.c src/wpad.c src/wispr.c \
 			src/stats.c src/iptables.c src/dnsproxy.c src/6to4.c \

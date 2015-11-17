@@ -940,6 +940,10 @@ int __connman_6to4_probe(struct connman_service *service);
 void __connman_6to4_remove(struct connman_ipconfig *ipconfig);
 int __connman_6to4_check(struct connman_ipconfig *ipconfig);
 
+#include <connman/multipath.h>
+
+void __connman_multipath_set(int index, enum connman_multipath_state state);
+
 struct connman_ippool;
 
 typedef void (*ippool_collision_cb_t) (struct connman_ippool *pool,
