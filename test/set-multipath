@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import sys
+import dbus
+
+def make_variant(string):
+	return dbus.String(string, variant_level=1)
+
+def print_usage():
+	print "Usage: %s <service> <off|on|backup>" % (sys.argv[0])
+
+
+if (len(sys.argv) < 3):
+	print_usage()
+	sys.exit(1)
+
+bus = dbus.SystemBus()
+path = "/net/connman/service/" + sys.argv[1]
+service = dbus.Interface(bus.get_object('net.connman', path),
+					'net.connman.Service')
+
+properties = service.GetProperties()
+
+print "Setting multipath state for %s to %s" % (sys.argv[2], sys.argv[1])
+
+service.SetProperty("Multipath", make_variant(sys.argv[2]))
+
+print
