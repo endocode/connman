@@ -29,6 +29,7 @@ def print_services(services):
 		identifier = path[path.rfind("/") + 1:]
 		state = " "
 		autoconnect = "  "
+		multipath = " "
 
 		if properties["Favorite"] == dbus.Boolean(1):
 			favorite = "*"
@@ -50,8 +51,14 @@ def print_services(services):
 		else:
 			name = "{" + properties["Type"] + "}"
 
-		print "%s%s%s %-26s { %s }" % (favorite, autoconnect, state,
-					       name, identifier)
+		print "%s%s%s mpath:%-5s %-26s { %s }" % (
+				favorite,
+				autoconnect,
+				state,
+				properties.get("Multipath", "unknown"),
+				name,
+				identifier
+		)
 
 if sys.argv[1] == "state":
 	properties = manager.GetProperties()
