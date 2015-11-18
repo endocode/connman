@@ -28,11 +28,11 @@
 /*
  * Set state for interface *index* to on/off and alternatively backup.
  */
-void __connman_multipath_set(int index, enum connman_multipath_state state)
+int __connman_multipath_set(int index, enum connman_multipath_state state)
 {
 	struct __connman_inet_rtnl_handle rth;
 	struct ifinfomsg *ifl;
-	int ret;
+	int ret = 0;
 
 	memset(&rth, 0, sizeof(rth));
 
@@ -69,16 +69,20 @@ void __connman_multipath_set(int index, enum connman_multipath_state state)
 	}
 
 	if (!ifl->ifi_change)
-		return;
+		return ret;
 
 	ret = __connman_inet_rtnl_open(&rth);
 	if (ret < 0) {
-		connman_warn("can't set multipath flags, err=%d", ret);
+		connman_warn("can't open rtnetlink channel");
 		goto done;
 	}
 
 	ret = __connman_inet_rtnl_send(&rth, &rth.req.n);
-
+	if (ret < 0) {
+		connman_warn("can't set multipath flags, err=%d", ret);
+		goto done;
+	}
 done:
 	__connman_inet_rtnl_close(&rth);
+	return ret;
 }

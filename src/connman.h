@@ -942,7 +942,7 @@ int __connman_6to4_check(struct connman_ipconfig *ipconfig);
 
 #include <connman/multipath.h>
 
-void __connman_multipath_set(int index, enum connman_multipath_state state);
+int __connman_multipath_set(int index, enum connman_multipath_state state);
 
 struct connman_ippool;
 
