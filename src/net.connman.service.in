@@ -1,5 +1,7 @@
 [D-BUS Service]
 Name=net.connman
-Exec=@sbindir@/connmand -n
+# XXX: options '-r -I eth0' are experimental.
+# Please remove them before publishing the codes.
+Exec=@sbindir@/connmand -n -r -I eth0
 User=root
 SystemdService=connman.service
