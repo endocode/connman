@@ -41,6 +41,11 @@ will timeout after certain amount of time. Use this
 setting to increase the value in case of different
 user interface designs.
 .TP
+.B LinkMonitor=\fP0/1\fP
+Enable link monitoring. Default is 0 (disabled).
+The monitoring requests will timeout after certain
+amount of time, which is defined by the service API.
+.TP
 .BI BackgroundScanning=true\ \fR|\fB\ false
 Enable background scanning. Default is true.
 Background scanning will start every 5 minutes unless

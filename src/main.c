@@ -68,6 +68,7 @@ static struct {
 	char **fallback_nameservers;
 	unsigned int timeout_inputreq;
 	unsigned int timeout_browserlaunch;
+	bool link_monitor;
 	char **blacklisted_interfaces;
 	bool allow_hostname_updates;
 	bool single_tech;
@@ -82,6 +83,7 @@ static struct {
 	.fallback_nameservers = NULL,
 	.timeout_inputreq = DEFAULT_INPUT_REQUEST_TIMEOUT,
 	.timeout_browserlaunch = DEFAULT_BROWSER_LAUNCH_TIMEOUT,
+	.link_monitor = false,
 	.blacklisted_interfaces = NULL,
 	.allow_hostname_updates = true,
 	.single_tech = false,
@@ -97,6 +99,7 @@ static struct {
 #define CONF_FALLBACK_NAMESERVERS       "FallbackNameservers"
 #define CONF_TIMEOUT_INPUTREQ           "InputRequestTimeout"
 #define CONF_TIMEOUT_BROWSERLAUNCH      "BrowserLaunchTimeout"
+#define CONF_LINK_MONITOR               "LinkMonitor"
 #define CONF_BLACKLISTED_INTERFACES     "NetworkInterfaceBlacklist"
 #define CONF_ALLOW_HOSTNAME_UPDATES     "AllowHostnameUpdates"
 #define CONF_SINGLE_TECH                "SingleConnectedTechnology"
@@ -112,6 +115,7 @@ static const char *supported_options[] = {
 	CONF_FALLBACK_NAMESERVERS,
 	CONF_TIMEOUT_INPUTREQ,
 	CONF_TIMEOUT_BROWSERLAUNCH,
+	CONF_LINK_MONITOR,
 	CONF_BLACKLISTED_INTERFACES,
 	CONF_ALLOW_HOSTNAME_UPDATES,
 	CONF_SINGLE_TECH,
@@ -317,6 +321,12 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
+	connman_settings.link_monitor =
+		g_key_file_get_boolean(config, "General", CONF_LINK_MONITOR,
+				&error);
+
+	g_clear_error(&error);
+
 	interfaces = __connman_config_get_string_list(config, "General",
 			CONF_BLACKLISTED_INTERFACES, &len, &error);
 
@@ -470,6 +480,7 @@ static gboolean option_detach = TRUE;
 static gboolean option_dnsproxy = TRUE;
 static gboolean option_backtrace = TRUE;
 static gboolean option_version = FALSE;
+static gboolean option_link_monitor = FALSE;
 
 static bool parse_debug(const char *key, const char *value,
 					gpointer user_data, GError **error)
@@ -510,6 +521,8 @@ static GOptionEntry options[] = {
 				"Don't print out backtrace information" },
 	{ "version", 'v', 0, G_OPTION_ARG_NONE, &option_version,
 				"Show version information and exit" },
+	{ "linkmonitor", 'm', 0, G_OPTION_ARG_INT, &option_link_monitor,
+			"enable link monitor mode", "LINKMONITOR" },
 	{ NULL },
 };
 
@@ -581,6 +594,11 @@ unsigned int connman_timeout_input_request(void)
 unsigned int connman_timeout_browser_launch(void)
 {
 	return connman_settings.timeout_browserlaunch;
+}
+
+bool connman_link_monitor(void)
+{
+	return connman_settings.link_monitor;
 }
 
 int main(int argc, char *argv[])

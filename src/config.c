@@ -72,6 +72,7 @@ struct connman_config_service {
 	char **search_domains;
 	char **timeservers;
 	char *domain_name;
+	bool link_monitor;
 };
 
 struct connman_config {
@@ -113,6 +114,7 @@ static bool cleanup = false;
 #define SERVICE_KEY_SEARCH_DOMAINS     "SearchDomains"
 #define SERVICE_KEY_TIMESERVERS        "Timeservers"
 #define SERVICE_KEY_DOMAIN             "Domain"
+#define SERVICE_KEY_LINK_MONITOR       "LinkMonitor"
 
 static const char *config_possible_keys[] = {
 	CONFIG_KEY_NAME,
@@ -144,6 +146,7 @@ static const char *service_possible_keys[] = {
 	SERVICE_KEY_SEARCH_DOMAINS,
 	SERVICE_KEY_TIMESERVERS,
 	SERVICE_KEY_DOMAIN,
+	SERVICE_KEY_LINK_MONITOR,
 	NULL,
 };
 
@@ -497,6 +500,9 @@ static bool load_service_generic(GKeyFile *keyfile,
 		} else
 			g_strfreev(strlist);
 	}
+
+	service->link_monitor = __connman_config_get_bool(keyfile, group,
+						SERVICE_KEY_LINK_MONITOR, NULL);
 
 	return true;
 

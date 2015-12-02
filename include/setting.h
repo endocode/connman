@@ -34,6 +34,7 @@ unsigned int *connman_setting_get_uint_list(const char *key);
 
 unsigned int connman_timeout_input_request(void);
 unsigned int connman_timeout_browser_launch(void);
+bool connman_link_monitor(void);
 
 #ifdef __cplusplus
 }
