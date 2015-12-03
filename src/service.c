@@ -3226,6 +3226,89 @@ error:
 	return -EINVAL;
 }
 
+static int multipath_add_service_table(struct connman_ipconfig *ipconfig,
+					int ifindex)
+{
+	const char *local = __connman_ipconfig_get_local(ipconfig);
+	const char *gw = __connman_ipconfig_get_gateway(ipconfig);
+	unsigned char prefix = __connman_ipconfig_get_prefixlen(ipconfig);
+
+	/*
+	 * TODO: scan routing tables for existing ids instead of using all
+	 * table ids above 300.
+	 */
+	static int table_id = 300;
+
+	int ret;
+
+	if (ifindex < 0) {
+		connman_warn("ipconfig_multipath: invalid if %d", ifindex);
+		return -1;
+	}
+
+	if (!local) {
+		connman_warn("ipconfig_multipath: no local ip");
+		return -1;
+	}
+
+	if (!prefix) {
+		connman_warn("ipconfig_multipath: no prefix");
+		return -1;
+	}
+
+	DBG("add service route for ifidx %d in table %d", ifindex, table_id);
+	ret = __connman_multipath_configure(ifindex, table_id,
+						local, gw, prefix);
+	if (ret < 0) {
+		connman_warn("routing table %d add error", table_id);
+		return -1;
+	}
+
+	__connman_ipconfig_set_mpath_table(ipconfig, table_id);
+
+	/* make sure this id won't repeat unless it rolls over */
+	++table_id;
+	if (table_id < 0)
+		table_id = 300;
+
+	return 0;
+}
+
+static int multipath_del_service_table(struct connman_ipconfig *ipconfig,
+						int ifindex)
+{
+	const char *local = __connman_ipconfig_get_local(ipconfig);
+	const char *gw = __connman_ipconfig_get_gateway(ipconfig);
+	unsigned char prefix = __connman_ipconfig_get_prefixlen(ipconfig);
+	int table_id = __connman_ipconfig_get_mpath_table(ipconfig);
+	int ret;
+
+	DBG("del service route for ifidx %d in table %d", ifindex, table_id);
+	ret = __connman_multipath_clean(ifindex, table_id,
+						local, gw, prefix);
+	if (ret < 0) {
+		connman_warn("routing table %d delete error", table_id);
+		return -1;
+	}
+
+	__connman_ipconfig_set_mpath_table(ipconfig, 0);
+
+	return 0;
+}
+
+static void multipath_del_service_tables(struct connman_service *service)
+{
+	struct connman_ipconfig *ip4 = __connman_service_get_ip4config(service);
+	struct connman_ipconfig *ip6 = __connman_service_get_ip6config(service);
+	int ifindex = __connman_service_get_index(service);
+
+	if (ip4)
+		multipath_del_service_table(ip4, ifindex);
+
+	if (ip6)
+		multipath_del_service_table(ip6, ifindex);
+}
+
 int __connman_service_reset_ipconfig(struct connman_service *service,
 		enum connman_ipconfig_type type, DBusMessageIter *array,
 		enum connman_service_state *new_state)
@@ -3607,6 +3690,9 @@ static DBusMessage *set_property(DBusConnection *conn,
 		device = connman_network_get_device(service->network);
 		if_index = connman_device_get_index(device);
 		__connman_multipath_set(if_index, service->mpath);
+
+		if (service->mpath == CONNMAN_MULTIPATH_STATE_OFF)
+			multipath_del_service_tables(service);
 
 		service_save(service);
 	} else if (g_str_equal(name, "MonitorTimeout")) {
@@ -5905,6 +5991,7 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 	struct connman_ipconfig *ipconfig = NULL;
 	enum connman_service_state old_state;
 	enum connman_ipconfig_method method;
+	int ifindex;
 
 	if (!service)
 		return -EINVAL;
@@ -5967,6 +6054,16 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 	case CONNMAN_SERVICE_STATE_CONFIGURATION:
 		break;
 	case CONNMAN_SERVICE_STATE_READY:
+		if (service->mpath == CONNMAN_MULTIPATH_STATE_ON ||
+			service->mpath == CONNMAN_MULTIPATH_STATE_BACKUP) {
+			/*
+			 * We can start setting up the multipath routing tables
+			 * only now, when we know the ip and gateway.
+			 */
+			ifindex = __connman_service_get_index(service);
+			multipath_add_service_table(ipconfig, ifindex);
+		}
+
 		if (type == CONNMAN_IPCONFIG_TYPE_IPV4) {
 			check_proxy_setup(service);
 			service_rp_filter(service, true);

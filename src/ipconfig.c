@@ -55,6 +55,8 @@ struct connman_ipconfig {
 	int ipv6_privacy_config;
 	char *last_dhcp_address;
 	char **last_dhcpv6_prefixes;
+
+	int mpath_table_id;
 };
 
 struct connman_ipdevice {
@@ -1099,6 +1101,17 @@ void __connman_ipconfig_set_prefixlen(struct connman_ipconfig *ipconfig,
 		return;
 
 	ipconfig->address->prefixlen = prefixlen;
+}
+
+int __connman_ipconfig_get_mpath_table(struct connman_ipconfig *ipconfig)
+{
+	return ipconfig->mpath_table_id;
+}
+
+void __connman_ipconfig_set_mpath_table(struct connman_ipconfig *ipconfig,
+					int table_id)
+{
+	ipconfig->mpath_table_id = table_id;
 }
 
 static struct connman_ipconfig *create_ipv6config(int index)
