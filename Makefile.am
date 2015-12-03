@@ -111,7 +111,7 @@ src_connmand_SOURCES = $(gdhcp_sources) $(gweb_sources) $(backtrace_sources) \
 			src/main.c src/connman.h src/log.c \
 			src/error.c src/plugin.c src/task.c \
 			src/device.c src/network.c src/connection.c \
-			src/manager.c src/service.c \
+			src/manager.c src/service.c src/multipath.c \
 			src/clock.c src/timezone.c src/agent-connman.c \
 			src/agent.c src/notifier.c src/provider.c \
 			src/resolver.c src/ipconfig.c src/detect.c src/inet.c \
