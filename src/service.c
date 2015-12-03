@@ -393,6 +393,14 @@ static enum connman_multipath_state string2mpathstate(const char *state)
 	return CONNMAN_MULTIPATH_STATE_UNKNOWN;
 }
 
+static bool is_valid_monitor_timeout(guint mtimeout)
+{
+	if (mtimeout > 0U && mtimeout <= G_MAXUINT32)
+		return true;
+	else
+		return false;
+}
+
 int __connman_service_load_modifiable(struct connman_service *service)
 {
 	GKeyFile *keyfile;
@@ -2093,9 +2101,6 @@ static void link_changed(struct connman_service *service)
 
 static void monitor_timeout_changed(struct connman_service *service)
 {
-	if (service->monitor_timeout == 0)
-		return;
-
 	if (!allow_property_changed(service))
 		return;
 
@@ -2395,8 +2400,7 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 	connman_dbus_dict_append_basic(dict, "AutoConnect",
 				DBUS_TYPE_BOOLEAN, &val);
 
-	if (service->monitor_timeout > 0)
-		connman_dbus_dict_append_basic(dict, "MonitorTimeout",
+	connman_dbus_dict_append_basic(dict, "MonitorTimeout",
 				DBUS_TYPE_UINT32, &service->monitor_timeout);
 
 	if (service->name)
@@ -3001,10 +3005,9 @@ const char *__connman_service_get_passphrase(struct connman_service *service)
 
 static void set_monitor_timeout(struct connman_service *service)
 {
-	if (service->monitor_timeout > 0)
-		g_timeout_add_seconds(service->monitor_timeout,
-				      monitor_timeout_triggered,
-				      connman_service_ref(service));
+	g_timeout_add_seconds(service->monitor_timeout,
+			      monitor_timeout_triggered,
+			      connman_service_ref(service));
 }
 
 static DBusMessage *get_properties(DBusConnection *conn,
@@ -3613,13 +3616,12 @@ static DBusMessage *set_property(DBusConnection *conn,
 			return __connman_error_invalid_arguments(msg);
 
 		dbus_message_iter_get_basic(&value, &mtimeout);
-
 		service->monitor_timeout = mtimeout;
 
-		monitor_timeout_changed(service);
-
-		if (mtimeout > 0)
+		if (is_valid_monitor_timeout(service->monitor_timeout)) {
+			monitor_timeout_changed(service);
 			set_monitor_timeout(service);
+		}
 
 		service_save(service);
 	} else
@@ -5889,7 +5891,7 @@ static gboolean monitor_timeout_triggered(gpointer user_data)
 		return G_SOURCE_REMOVE;
 	}
 
-	DBG("timeout=%d sec, checking if link is online...",
+	DBG("timeout=%u sec, checking if link is online...",
 			service->monitor_timeout);
 
 	return connman_check_online(service, service->type);
