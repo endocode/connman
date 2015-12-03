@@ -276,11 +276,17 @@ client_connmanctl_LDADD = gdbus/libgdbus-internal.la @DBUS_LIBS@ @GLIB_LIBS@ \
 				-lreadline -ldl
 endif
 
-noinst_PROGRAMS += unit/test-ippool
+noinst_PROGRAMS += unit/test-ippool unit/test-multipath
 
 unit_test_ippool_SOURCES = $(backtrace_sources) src/log.c src/dbus.c \
 					src/error.c src/ippool.c unit/test-ippool.c
 unit_test_ippool_LDADD = gdbus/libgdbus-internal.la \
+				@GLIB_LIBS@ @DBUS_LIBS@ -ldl
+
+unit_test_multipath_SOURCES = src/log.c src/error.c  \
+					src/inet.c src/backtrace.c \
+					src/multipath.c unit/test-multipath.c
+unit_test_multipath_LDADD = gdbus/libgdbus-internal.la \
 				@GLIB_LIBS@ @DBUS_LIBS@ -ldl
 
 TESTS = unit/test-ippool
