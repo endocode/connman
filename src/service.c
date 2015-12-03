@@ -3137,6 +3137,118 @@ error:
 	return -EINVAL;
 }
 
+static unsigned int multipath_get_table_id(struct connman_ipconfig *ipconfig,
+						int ifindex)
+
+{
+	enum connman_ipconfig_type type;
+	unsigned int ifidx = ifindex;
+	unsigned int table_id = ifidx + 0xff;
+
+	if (table_id < ifidx) {
+		connman_warn("multipath_get_table_id: ifindex %u too high,"
+				"table_id wrap around to %u", ifidx, table_id);
+		/*
+		 * We can still use the table_id though.
+		 *
+		 * The assumption the system doesn't use more than 2^32 - 256
+		 * interfaces simmultaneously.
+		 */
+	}
+
+	DBG("new table_id: %u from if_index %u", table_id, ifindex);
+
+	type = __connman_ipconfig_get_config_type(ipconfig);
+	switch (type) {
+	case CONNMAN_IPCONFIG_TYPE_IPV4:
+	case CONNMAN_IPCONFIG_TYPE_IPV6:
+	case CONNMAN_IPCONFIG_TYPE_ALL:
+		return table_id;
+	default:
+		return 0;
+	}
+}
+
+static int multipath_add_service_table(struct connman_ipconfig *ipconfig,
+					int ifindex)
+{
+	const char *local;
+	const char *gw;
+	unsigned char prefix;
+	unsigned int table_id;
+	int ret;
+
+	if (!ipconfig)
+		return -1;
+
+	local = __connman_ipconfig_get_local(ipconfig);
+	gw = __connman_ipconfig_get_gateway(ipconfig);
+	prefix = __connman_ipconfig_get_prefixlen(ipconfig);
+	table_id = multipath_get_table_id(ipconfig, ifindex);
+
+	if (ifindex < 0) {
+		connman_warn("ipconfig_multipath: invalid if %d", ifindex);
+		return -1;
+	}
+
+	if (!local) {
+		connman_warn("ipconfig_multipath: no local ip");
+		return -1;
+	}
+
+	if (!prefix) {
+		connman_warn("ipconfig_multipath: no prefix");
+		return -1;
+	}
+
+	if (!table_id) {
+		connman_warn("ipconfig_multipath: no table id");
+		return -1;
+	}
+
+	if (__connman_ipconfig_get_mpath_table(ipconfig))
+		/* table exists, don't recreate */
+		return -1;
+
+	DBG("add service route for ifidx %d in table %d", ifindex, table_id);
+	ret = __connman_multipath_configure(ifindex, table_id,
+						local, gw, prefix);
+	if (ret < 0) {
+		connman_warn("routing table %d add error", table_id);
+		return -1;
+	}
+
+	__connman_ipconfig_set_mpath_table(ipconfig, table_id);
+
+	return 0;
+}
+
+static int multipath_del_service_table(struct connman_ipconfig *ipconfig,
+						int ifindex)
+{
+	const char *local = __connman_ipconfig_get_local(ipconfig);
+	const char *gw = __connman_ipconfig_get_gateway(ipconfig);
+	unsigned char prefix = __connman_ipconfig_get_prefixlen(ipconfig);
+	int table_id = __connman_ipconfig_get_mpath_table(ipconfig);
+	int ret;
+
+	if (!table_id)
+		/* don't delete something that is not there */
+		return -1;
+
+	DBG("del service route for ifidx %d in table %d", ifindex, table_id);
+	ret = __connman_multipath_clean(ifindex, table_id,
+						local, gw, prefix);
+	if (ret < 0) {
+		connman_warn("routing table %d delete error", table_id);
+		return -1;
+	}
+
+	__connman_ipconfig_set_mpath_table(ipconfig, 0);
+
+	return 0;
+}
+
 int __connman_service_reset_ipconfig(struct connman_service *service,
 		enum connman_ipconfig_type type, DBusMessageIter *array,
 		enum connman_service_state *new_state)
@@ -3178,6 +3290,9 @@ int __connman_service_reset_ipconfig(struct connman_service *service,
 
 		new_method = __connman_ipconfig_get_method(new_ipconfig);
 	}
+
+	/* Clear old multipath routing tables. */
+	multipath_del_service_table(ipconfig, index);
 
 	if (is_connecting_state(service, state) ||
 					is_connected_state(service, state))
@@ -4491,6 +4606,7 @@ static void service_free(gpointer user_data)
 {
 	struct connman_service *service = user_data;
 	char *path = service->path;
+	int ifindex = __connman_service_get_index(service);
 
 	DBG("service %p", service);
 
@@ -4524,6 +4640,7 @@ static void service_free(gpointer user_data)
 		connman_provider_unref(service->provider);
 
 	if (service->ipconfig_ipv4) {
+		multipath_del_service_table(service->ipconfig_ipv4, ifindex);
 		__connman_ipconfig_set_ops(service->ipconfig_ipv4, NULL);
 		__connman_ipconfig_set_data(service->ipconfig_ipv4, NULL);
 		__connman_ipconfig_unref(service->ipconfig_ipv4);
@@ -4531,6 +4648,7 @@ static void service_free(gpointer user_data)
 	}
 
 	if (service->ipconfig_ipv6) {
+		multipath_del_service_table(service->ipconfig_ipv6, ifindex);
 		__connman_ipconfig_set_ops(service->ipconfig_ipv6, NULL);
 		__connman_ipconfig_set_data(service->ipconfig_ipv6, NULL);
 		__connman_ipconfig_unref(service->ipconfig_ipv6);
@@ -5727,6 +5845,7 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 	struct connman_ipconfig *ipconfig = NULL;
 	enum connman_service_state old_state;
 	enum connman_ipconfig_method method;
+	int ifindex;
 
 	if (!service)
 		return -EINVAL;
@@ -5789,6 +5908,16 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 	case CONNMAN_SERVICE_STATE_CONFIGURATION:
 		break;
 	case CONNMAN_SERVICE_STATE_READY:
+
+		if (service->mpath_routing) {
+			/*
+			 * We can start setting up the multipath routing tables
+			 * only now, when we know the ip and gateway.
+			 */
+			ifindex = __connman_service_get_index(service);
+			multipath_add_service_table(ipconfig, ifindex);
+		}
+
 		if (type == CONNMAN_IPCONFIG_TYPE_IPV4) {
 			check_proxy_setup(service);
 			service_rp_filter(service, true);
@@ -5806,11 +5935,16 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 		if (type == CONNMAN_IPCONFIG_TYPE_IPV4)
 			service_rp_filter(service, false);
 
+		ifindex = __connman_service_get_index(service);
+		multipath_del_service_table(ipconfig, ifindex);
 		break;
 
 	case CONNMAN_SERVICE_STATE_IDLE:
 	case CONNMAN_SERVICE_STATE_FAILURE:
 		__connman_ipconfig_disable(ipconfig);
+
+		ifindex = __connman_service_get_index(service);
+		multipath_del_service_table(ipconfig, ifindex);
 
 		break;
 	}
