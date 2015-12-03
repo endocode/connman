@@ -943,6 +943,16 @@ int __connman_6to4_check(struct connman_ipconfig *ipconfig);
 #include <connman/multipath.h>
 
 int __connman_multipath_set(int index, enum connman_multipath_state state);
+int __connman_multipath_configure(int index,
+					int table_id,
+					const char *host,
+					const char *gateway,
+					int prefix_len);
+int __connman_multipath_clean(int index,
+				int table_id,
+				const char *host,
+				const char *gateway,
+				int prefix_len);
 
 struct connman_ippool;
 
