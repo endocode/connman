@@ -524,7 +524,7 @@ static GOptionEntry options[] = {
 	{ "version", 'v', 0, G_OPTION_ARG_NONE, &option_version,
 				"Show version information and exit" },
 	{ "linkmonitor", 'm', 0, G_OPTION_ARG_NONE, &option_link_monitor,
-			"enable link monitor mode"},
+				"enable link monitor mode"},
 	{ NULL },
 };
 
@@ -556,6 +556,9 @@ bool connman_setting_get_bool(const char *key)
 
 	if (g_str_equal(key, CONF_ENABLE_6TO4))
 		return connman_settings.enable_6to4;
+
+	if (g_str_equal(key, CONF_LINK_MONITOR))
+		return connman_settings.link_monitor;
 
 	return false;
 }
@@ -598,11 +601,6 @@ unsigned int connman_timeout_browser_launch(void)
 	return connman_settings.timeout_browserlaunch;
 }
 
-bool connman_link_monitor(void)
-{
-	return connman_settings.link_monitor;
-}
-
 int main(int argc, char *argv[])
 {
 	GOptionContext *context;
@@ -636,6 +634,9 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
+
+	if (option_link_monitor)
+		connman_settings.link_monitor = true;
 
 	if (mkdir(STORAGEDIR, S_IRUSR | S_IWUSR | S_IXUSR |
 				S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {

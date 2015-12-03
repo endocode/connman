@@ -4746,7 +4746,8 @@ static void service_initialize(struct connman_service *service)
 
 	service->wps = false;
 
-	service->monitor_timeout = connman_link_monitor() ? MONITOR_TIMEOUT : 0;
+	service->monitor_timeout = connman_setting_get_bool("LinkMonitor") ?
+			MONITOR_TIMEOUT : 0;
 }
 
 /**
