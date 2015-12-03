@@ -222,7 +222,7 @@ struct __connman_inet_rtnl_handle {
 };
 
 int __connman_inet_rtnl_open(struct __connman_inet_rtnl_handle *rth);
-typedef void (*__connman_inet_rtnl_cb_t) (struct nlmsghdr *answer,
+typedef gboolean (*__connman_inet_rtnl_cb_t) (struct nlmsghdr *answer,
 					void *user_data);
 int __connman_inet_rtnl_talk(struct __connman_inet_rtnl_handle *rtnl,
 			struct nlmsghdr *n, int timeout,
