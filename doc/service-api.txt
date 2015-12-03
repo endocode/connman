@@ -500,3 +500,10 @@ Properties	string State [readonly]
 				Possible values are "half" and "full".
 
 				This information is not available.
+
+		uint32 MonitorTimeout [readwrite]
+
+			Indicates the link monitor timeout.
+			The request for link monitoring will timeout
+			after certain amount of time in seconds.
+			Default is 0 (disabled).

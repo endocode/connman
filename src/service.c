@@ -39,6 +39,7 @@
 #include "connman.h"
 
 #define CONNECT_TIMEOUT		120
+#define MONITOR_TIMEOUT		5	/* used only if link monitoring is enabled */
 
 static DBusConnection *connection = NULL;
 
@@ -111,6 +112,7 @@ struct connman_service {
 	DBusMessage *pending;
 	DBusMessage *provider_pending;
 	guint timeout;
+	guint monitor_timeout;
 	struct connman_stats stats;
 	struct connman_stats stats_roaming;
 	GHashTable *counter_table;
@@ -135,6 +137,7 @@ static struct connman_ipconfig *create_ip4config(struct connman_service *service
 		int index, enum connman_ipconfig_method method);
 static struct connman_ipconfig *create_ip6config(struct connman_service *service,
 		int index);
+static gboolean monitor_timeout_triggered(gpointer user_data);
 
 struct find_data {
 	const char *path;
@@ -446,6 +449,7 @@ static int service_load(struct connman_service *service)
 	GError *error = NULL;
 	gsize length;
 	gchar *str;
+	guint64 mtimeout;
 	bool autoconnect;
 	unsigned int ssid_len;
 	int err = 0;
@@ -625,6 +629,11 @@ static int service_load(struct connman_service *service)
 
 	service->hidden_service = g_key_file_get_boolean(keyfile,
 					service->identifier, "Hidden", NULL);
+
+	mtimeout = g_key_file_get_uint64(keyfile,
+				service->identifier, "MonitorTimeout", NULL);
+	if (mtimeout > 0)
+		service->monitor_timeout = (guint) mtimeout;
 
 done:
 	g_key_file_free(keyfile);
@@ -820,6 +829,11 @@ static int service_save(struct connman_service *service)
 					strlen(service->config_entry) > 0)
 		g_key_file_set_string(keyfile, service->identifier,
 				"Config.ident", service->config_entry);
+
+	if (service->monitor_timeout > 0)
+		g_key_file_set_uint64(keyfile, service->identifier,
+				"MonitorTimeout",
+				(guint64) service->monitor_timeout);
 
 done:
 	__connman_storage_save_service(keyfile, service->identifier);
@@ -2077,6 +2091,19 @@ static void link_changed(struct connman_service *service)
 						append_ethernet, service);
 }
 
+static void monitor_timeout_changed(struct connman_service *service)
+{
+	if (service->monitor_timeout == 0)
+		return;
+
+	if (!allow_property_changed(service))
+		return;
+
+	connman_dbus_property_changed_basic(service->path,
+				CONNMAN_SERVICE_INTERFACE, "MonitorTimeout",
+					DBUS_TYPE_UINT32, &service->monitor_timeout);
+}
+
 static void stats_append_counters(DBusMessageIter *dict,
 			struct connman_stats_data *stats,
 			struct connman_stats_data *counters,
@@ -2367,6 +2394,10 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 
 	connman_dbus_dict_append_basic(dict, "AutoConnect",
 				DBUS_TYPE_BOOLEAN, &val);
+
+	if (service->monitor_timeout > 0)
+		connman_dbus_dict_append_basic(dict, "MonitorTimeout",
+				DBUS_TYPE_UINT32, &service->monitor_timeout);
 
 	if (service->name)
 		connman_dbus_dict_append_basic(dict, "Name",
@@ -2968,6 +2999,14 @@ const char *__connman_service_get_passphrase(struct connman_service *service)
 	return service->passphrase;
 }
 
+static void set_monitor_timeout(struct connman_service *service)
+{
+	if (service->monitor_timeout > 0)
+		g_timeout_add_seconds(service->monitor_timeout,
+				      monitor_timeout_triggered,
+				      connman_service_ref(service));
+}
+
 static DBusMessage *get_properties(DBusConnection *conn,
 					DBusMessage *msg, void *user_data)
 {
@@ -3567,6 +3606,22 @@ static DBusMessage *set_property(DBusConnection *conn,
 		__connman_multipath_set(if_index, service->mpath);
 
 		service_save(service);
+	} else if (g_str_equal(name, "MonitorTimeout")) {
+		dbus_uint32_t mtimeout;
+
+		if (type != DBUS_TYPE_UINT32)
+			return __connman_error_invalid_arguments(msg);
+
+		dbus_message_iter_get_basic(&value, &mtimeout);
+
+		service->monitor_timeout = mtimeout;
+
+		monitor_timeout_changed(service);
+
+		if (mtimeout > 0)
+			set_monitor_timeout(service);
+
+		service_save(service);
 	} else
 		return __connman_error_invalid_property(msg);
 
@@ -3607,6 +3662,12 @@ static void remove_timeout(struct connman_service *service)
 	}
 }
 
+static void remove_monitor_timeout(struct connman_service *service)
+{
+	if (service->monitor_timeout > 0)
+		service->monitor_timeout = 0;
+}
+
 static void reply_pending(struct connman_service *service, int error)
 {
 	remove_timeout(service);
@@ -3626,6 +3687,7 @@ static void reply_pending(struct connman_service *service, int error)
 static void service_complete(struct connman_service *service)
 {
 	reply_pending(service, EIO);
+	remove_monitor_timeout(service);
 
 	if (service->connect_reason != CONNMAN_SERVICE_CONNECT_REASON_USER)
 		__connman_service_auto_connect(service->connect_reason);
@@ -4025,6 +4087,7 @@ void __connman_service_return_error(struct connman_service *service,
 	__connman_service_set_hidden_data(service, user_data);
 
 	reply_pending(service, error);
+	remove_monitor_timeout(service);
 }
 
 static gboolean connect_timeout(gpointer user_data)
@@ -4558,6 +4621,7 @@ static void service_free(gpointer user_data)
 	DBG("service %p", service);
 
 	reply_pending(service, ENOENT);
+	remove_monitor_timeout(service);
 
 	__connman_notifier_service_remove(service);
 	service_schedule_removed(service);
@@ -4681,6 +4745,8 @@ static void service_initialize(struct connman_service *service)
 	service->provider = NULL;
 
 	service->wps = false;
+
+	service->monitor_timeout = connman_link_monitor() ? MONITOR_TIMEOUT : 0;
 }
 
 /**
@@ -5422,10 +5488,19 @@ static int service_indicate_state(struct connman_service *service)
 		break;
 
 	case CONNMAN_SERVICE_STATE_ASSOCIATION:
+		/* READY/ONLINE -> ASSOCIATION transition */
+		if (old_state == CONNMAN_SERVICE_STATE_READY ||
+				old_state == CONNMAN_SERVICE_STATE_ONLINE)
+			remove_monitor_timeout(service);
 
 		break;
 
 	case CONNMAN_SERVICE_STATE_CONFIGURATION:
+		/* READY/ONLINE -> CONFIGURATION transition */
+		if (old_state == CONNMAN_SERVICE_STATE_READY ||
+				old_state == CONNMAN_SERVICE_STATE_ONLINE)
+			remove_monitor_timeout(service);
+
 		if (!service->new_service &&
 				__connman_stats_service_register(service) == 0) {
 			/*
@@ -5512,6 +5587,7 @@ static int service_indicate_state(struct connman_service *service)
 		set_error(service, CONNMAN_SERVICE_ERROR_UNKNOWN);
 
 		reply_pending(service, ECONNABORTED);
+		remove_monitor_timeout(service);
 
 		def_service = __connman_service_get_default();
 
@@ -5660,6 +5736,24 @@ enum connman_service_state __connman_service_ipconfig_get_state(
 	return CONNMAN_SERVICE_STATE_UNKNOWN;
 }
 
+static gboolean connman_check_online(struct connman_service *service,
+                enum connman_ipconfig_type type)
+{
+	if (service->monitor_timeout > 0) {
+		/* do not initiate WISPr authentication, but sleep
+		 * until monitor_timeout has expired. */
+		g_timeout_add_seconds(service->monitor_timeout,
+				      monitor_timeout_triggered,
+				      connman_service_ref(service));
+		return G_SOURCE_REMOVE;
+	}
+
+	/* As monitor_timeout expired, continue to do normal WISPr prcess. */
+	__connman_wispr_start(service, type);
+
+	return G_SOURCE_REMOVE;
+}
+
 static void check_proxy_setup(struct connman_service *service)
 {
 	/*
@@ -5685,7 +5779,7 @@ static void check_proxy_setup(struct connman_service *service)
 	return;
 
 done:
-	__connman_wispr_start(service, CONNMAN_IPCONFIG_TYPE_IPV4);
+	connman_check_online(service, CONNMAN_IPCONFIG_TYPE_IPV4);
 }
 
 /*
@@ -5783,6 +5877,24 @@ int __connman_service_online_check_failed(struct connman_service *service,
 	return EAGAIN;
 }
 
+static gboolean monitor_timeout_triggered(gpointer user_data)
+{
+	struct connman_service *service = user_data;
+	int refcount = service->refcount - 1;
+
+	connman_service_unref(service);
+	if (refcount == 0) {
+		DBG("Service %p already removed", service);
+		return G_SOURCE_REMOVE;
+	}
+
+	DBG("timeout=%d sec, checking if link is online...",
+			service->monitor_timeout);
+
+	return connman_check_online(service, service->type);
+}
+
+
 int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 					enum connman_service_state new_state,
 					enum connman_ipconfig_type type)
@@ -5857,7 +5969,7 @@ int __connman_service_ipconfig_indicate_state(struct connman_service *service,
 			service_rp_filter(service, true);
 		} else {
 			service->online_check_count = 1;
-			__connman_wispr_start(service, type);
+			connman_check_online(service, type);
 		}
 		break;
 	case CONNMAN_SERVICE_STATE_ONLINE:
