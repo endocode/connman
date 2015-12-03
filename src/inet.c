@@ -2224,28 +2224,21 @@ static int inet_rtnl_recv(GIOChannel *chan, gpointer user_data)
 
 	len = status;
 
-	while (len > 0) {
+	for (h = ptr; NLMSG_OK(h, len); h = NLMSG_NEXT(h, len)) {
 		struct nlmsgerr *err;
-
-		h = ptr;
-
-		if (!NLMSG_OK(h, len))
-			return -1;
 
 		if (h->nlmsg_seq != rth->seq) {
 			/* Skip this msg */
 			DBG("skip %d/%d len %d", rth->seq,
 				h->nlmsg_seq, h->nlmsg_len);
 
-			len -= h->nlmsg_len;
-			ptr += h->nlmsg_len;
 			continue;
 		}
 
 		switch (h->nlmsg_type) {
 		case NLMSG_NOOP:
 		case NLMSG_OVERRUN:
-			return -1;
+			continue;
 
 		case NLMSG_ERROR:
 			err = (struct nlmsgerr *)NLMSG_DATA(h);
@@ -2254,17 +2247,15 @@ static int inet_rtnl_recv(GIOChannel *chan, gpointer user_data)
 			return err->error;
 		}
 
-		break;
+		if (h->nlmsg_seq == rth->seq) {
+			DBG("received %d seq %d", h->nlmsg_len, h->nlmsg_seq);
+
+			if (rtnl_data->callback(h, rtnl_data->user_data))
+				break;
+		}
 	}
 
-	if (h->nlmsg_seq == rth->seq) {
-		DBG("received %d seq %d", h->nlmsg_len, h->nlmsg_seq);
-
-		rtnl_data->callback(h, rtnl_data->user_data);
-
-		inet_rtnl_cleanup(rtnl_data);
-	}
-
+	inet_rtnl_cleanup(rtnl_data);
 	return 0;
 }
 
@@ -2387,7 +2378,7 @@ struct get_route_cb_data {
 	void *user_data;
 };
 
-static void get_route_cb(struct nlmsghdr *answer, void *user_data)
+static gboolean get_route_cb(struct nlmsghdr *answer, void *user_data)
 {
 	struct get_route_cb_data *data = user_data;
 	struct rtattr *tb[RTA_MAX+1];
@@ -2435,7 +2426,7 @@ out:
 
 	g_free(data);
 
-	return;
+	return TRUE;
 }
 
 /*
