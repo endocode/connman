@@ -321,9 +321,11 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
-	connman_settings.link_monitor =
-		g_key_file_get_boolean(config, "General", CONF_LINK_MONITOR,
-				&error);
+	boolean = g_key_file_get_boolean(config, "General", CONF_LINK_MONITOR,
+			&error);
+
+	if (!error)
+		connman_settings.link_monitor = boolean;
 
 	g_clear_error(&error);
 
@@ -521,8 +523,8 @@ static GOptionEntry options[] = {
 				"Don't print out backtrace information" },
 	{ "version", 'v', 0, G_OPTION_ARG_NONE, &option_version,
 				"Show version information and exit" },
-	{ "linkmonitor", 'm', 0, G_OPTION_ARG_INT, &option_link_monitor,
-			"enable link monitor mode", "LINKMONITOR" },
+	{ "linkmonitor", 'm', 0, G_OPTION_ARG_NONE, &option_link_monitor,
+			"enable link monitor mode"},
 	{ NULL },
 };
 
