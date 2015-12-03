@@ -67,7 +67,7 @@ for (path, properties) in services:
 					"Security"]:
 			val = extract_list(properties[key])
 
-		elif key in ["Strength", "Priority"]:
+		elif key in ["Strength", "Priority", "MonitorTimeout"]:
 			val = int(properties[key])
 
 		else:

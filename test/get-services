@@ -49,7 +49,7 @@ for entry in services:
 				val = "true"
 			else:
 				val = "false"
-		elif key in ["Strength"]:
+		elif key in ["Strength", "MonitorTimeout"]:
 			val = int(properties[key])
 		else:
 			val = str(properties[key])

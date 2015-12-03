@@ -30,6 +30,7 @@ def print_services(services):
 		state = " "
 		autoconnect = "  "
 		multipath = " "
+		monitortimeout = "           "
 
 		if properties["Favorite"] == dbus.Boolean(1):
 			favorite = "*"
@@ -43,6 +44,9 @@ def print_services(services):
 				state = "R"
 			elif properties["State"] == "online":
 				state = "O"
+
+			if properties["MonitorTimeout"] != None:
+				monitortimeout = " %s" % (str(properties["MonitorTimeout"]))
 		else:
 			favorite = " "
 
@@ -51,10 +55,11 @@ def print_services(services):
 		else:
 			name = "{" + properties["Type"] + "}"
 
-		print "%s%s%s mpath:%-5s %-26s { %s }" % (
+		print "%s%s%s%11s mpath:%-5s %-26s { %s }" % (
 				favorite,
 				autoconnect,
 				state,
+				monitortimeout,
 				properties.get("Multipath", "unknown"),
 				name,
 				identifier

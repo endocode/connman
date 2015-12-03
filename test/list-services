@@ -51,7 +51,7 @@ for path, properties in manager.GetServices():
 				val = "true"
 			else:
 				val = "false"
-		elif key in ["Strength"]:
+		elif key in ["Strength", "MonitorTimeout"]:
 			val = int(properties[key])
 		else:
 			val = properties[key]

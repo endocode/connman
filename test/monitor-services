@@ -38,7 +38,7 @@ def property_changed(name, value, path):
 			"Domains", "Domains.Configuration",
 			"Timeservers", "Timeservers.Configuration", "Security"]:
 		val = extract_list(value)
-	elif name in ["Strength", "Priority"]:
+	elif name in ["Strength", "Priority", "MonitorTimeout"]:
 		val = int(value)
 	else:
 		val = str(value)
