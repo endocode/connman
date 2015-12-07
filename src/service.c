@@ -5825,7 +5825,7 @@ enum connman_service_state __connman_service_ipconfig_get_state(
 	return CONNMAN_SERVICE_STATE_UNKNOWN;
 }
 
-static gboolean connman_check_online(struct connman_service *service,
+static void connman_check_online(struct connman_service *service,
                 enum connman_ipconfig_type type)
 {
 	if (service->monitor_timeout > 0) {
@@ -5834,13 +5834,10 @@ static gboolean connman_check_online(struct connman_service *service,
 		g_timeout_add_seconds(service->monitor_timeout,
 				      monitor_timeout_triggered,
 				      connman_service_ref(service));
-		return G_SOURCE_REMOVE;
 	}
 
 	/* As monitor_timeout expired, continue to do normal WISPr prcess. */
 	__connman_wispr_start(service, type);
-
-	return G_SOURCE_REMOVE;
 }
 
 static void check_proxy_setup(struct connman_service *service)
@@ -5980,7 +5977,14 @@ static gboolean monitor_timeout_triggered(gpointer user_data)
 	DBG("timeout=%u sec, checking if link is online...",
 			service->monitor_timeout);
 
-	return connman_check_online(service, service->type);
+	if (is_connected_state(service, service->state_ipv4))
+		connman_check_online(service,
+					CONNMAN_IPCONFIG_TYPE_IPV4);
+	if (is_connected_state(service, service->state_ipv6))
+		connman_check_online(service,
+					CONNMAN_IPCONFIG_TYPE_IPV6);
+
+	return G_SOURCE_REMOVE;
 }
 
 
