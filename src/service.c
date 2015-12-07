@@ -5977,6 +5977,7 @@ static gboolean monitor_timeout_triggered(gpointer user_data)
 {
 	struct connman_service *service = user_data;
 	int refcount = service->refcount - 1;
+	int ret = 0;
 
 	connman_service_unref(service);
 	if (refcount == 0) {
@@ -5984,16 +5985,35 @@ static gboolean monitor_timeout_triggered(gpointer user_data)
 		return G_SOURCE_REMOVE;
 	}
 
+	/* This check is necessary for checking the case where the DBUS
+	 * property MonitorTimeout is set to 0 by users, during the
+	 * monitoring loop. */
+	if (service->monitor_timeout == 0) {
+		DBG("monitor timeout is disabled, stopping link monitoring...");
+		return G_SOURCE_REMOVE;
+	}
+
 	DBG("timeout=%u sec, checking if link is online...",
 			service->monitor_timeout);
+	/* As monitor_timeout expired, continue to do normal WISPr prcess. */
 
-	if (is_connected_state(service, service->state_ipv4))
-		connman_check_online(service,
-					CONNMAN_IPCONFIG_TYPE_IPV4);
-	if (is_connected_state(service, service->state_ipv6))
-		connman_check_online(service,
-					CONNMAN_IPCONFIG_TYPE_IPV6);
+	if (is_connected_state(service, service->state_ipv4)) {
+		ret = __connman_wispr_start(service, CONNMAN_IPCONFIG_TYPE_IPV4);
+		if (ret < 0)
+			DBG("IPv4: WISPr auth returned an error %d (%m)\n", ret);
+		else
+			DBG("IPv4: WISPr auth succeeds.%d.\n", ret);
+	}
+	if (is_connected_state(service, service->state_ipv6)) {
+		ret = __connman_wispr_start(service, CONNMAN_IPCONFIG_TYPE_IPV6);
+		if (ret < 0)
+			DBG("IPv6: WISPr auth returned an error %d (%m)\n", ret);
+		else
+			DBG("IPv6: WISPr auth succeeds.%d.\n", ret);
+	}
 
+	/* set back the monitoring timeout, and return */
+	set_monitor_timeout(service);
 	return G_SOURCE_REMOVE;
 }
 
