@@ -5943,6 +5943,16 @@ int __connman_service_online_check_failed(struct connman_service *service,
 	DBG("service %p type %d count %d", service, type,
 						service->online_check_count);
 
+	/* continuous monitoring: downgrade if state is now ONLINE */
+	if (service->monitor_timeout > 0 &&
+		service->state == CONNMAN_SERVICE_STATE_ONLINE) {
+
+		downgrade_state(service);
+		connman_warn("Online check failed for %p %s, state downgrade",
+			service, service->name);
+		return 0;
+	}
+
 	/* currently we only retry IPv6 stuff */
 	if (type == CONNMAN_IPCONFIG_TYPE_IPV4 ||
 			service->online_check_count != 1) {
