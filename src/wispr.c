@@ -688,6 +688,7 @@ static bool wispr_portal_web_result(GWebResult *result, gpointer user_data)
 	const char *str = NULL;
 	guint16 status;
 	gsize length;
+	int ret = 0;
 
 	DBG("");
 
@@ -754,11 +755,15 @@ static bool wispr_portal_web_result(GWebResult *result, gpointer user_data)
 		goto done;
 	case 400:
 	case 404:
-		if (__connman_service_online_check_failed(wp_context->service,
-						wp_context->type) == 0) {
+		ret = __connman_service_online_check_failed(wp_context->service,
+						wp_context->type);
+		if (ret == 0) {
 			wispr_portal_error(wp_context);
 			free_connman_wispr_portal_context(wp_context);
 			return false;
+		} else if (ret == EAGAIN) {
+			wispr_portal_error(wp_context);
+			goto done;
 		}
 
 		break;

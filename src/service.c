@@ -5943,14 +5943,18 @@ int __connman_service_online_check_failed(struct connman_service *service,
 	DBG("service %p type %d count %d", service, type,
 						service->online_check_count);
 
-	/* continuous monitoring: downgrade if state is now ONLINE */
+	/*
+	 * continuous monitoring: downgrade if state is now ONLINE, and
+	 * return EAGAIN to prevent the later freeing path from touching
+	 * the uninitialized wispr_portal->contexts.
+	 */
 	if (service->monitor_timeout > 0 &&
 		service->state == CONNMAN_SERVICE_STATE_ONLINE) {
 
 		downgrade_state(service);
 		connman_warn("Online check failed for %p %s, state downgrade",
 			service, service->name);
-		return 0;
+		return EAGAIN;
 	}
 
 	/* currently we only retry IPv6 stuff */
