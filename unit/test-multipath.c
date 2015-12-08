@@ -278,7 +278,7 @@ static bool rtm_get(struct route_data *data)
 		goto err;
 	}
 
-	ret = __connman_inet_rtnl_talk(rth, &rth->req.n, 0,
+	ret = __connman_inet_rtnl_talk(rth, &rth->req.n, 5,
 					route_find_cb, &test_data);
 	if (ret < 0) {
 		connman_error("can't set multipath flags, err=%d", ret);
