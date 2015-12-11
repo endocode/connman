@@ -106,7 +106,7 @@ int __connman_multipath_set(int index, enum connman_multipath_state state)
  * Modify routes or rules for a given interface and table.
  */
 static int multipath_table_modify(int cmd, int family, int ifindex,
-				int table_id,
+				unsigned int table_id,
 				const char *addr,
 				unsigned addr_len,
 				unsigned prefix_len)
@@ -223,7 +223,7 @@ enum multipath_cmd {
 
 static int multipath_modify(enum multipath_cmd cmd,
 				int ifindex,
-				int table_id,
+				unsigned int table_id,
 				const char *host,
 				const char *gateway,
 				int prefix_len)
@@ -292,7 +292,7 @@ static int multipath_modify(enum multipath_cmd cmd,
 }
 
 int __connman_multipath_configure(int ifindex,
-					int table_id,
+					unsigned int table_id,
 					const char *host,
 					const char *gateway,
 					int prefix_len)
@@ -303,7 +303,7 @@ int __connman_multipath_configure(int ifindex,
 }
 
 int __connman_multipath_clean(int ifindex,
-				int table_id,
+				unsigned int table_id,
 				const char *host,
 				const char *gateway,
 				int prefix_len)

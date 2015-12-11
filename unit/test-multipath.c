@@ -38,7 +38,7 @@
 struct route_data {
 	int cmd;
 
-	int table_id;
+	unsigned int table_id;
 	int family;
 	int ifindex;
 
@@ -400,7 +400,7 @@ static int get_dev_ipv6_ll_addr(const char *dev, char *addr_str)
 
 }
 
-static bool find_rule(int table_id, const char *src_ip)
+static bool find_rule(unsigned int table_id, const char *src_ip)
 {
 	struct route_data r = {0};
 	r.table_id = table_id;
@@ -411,7 +411,7 @@ static bool find_rule(int table_id, const char *src_ip)
 	return rtm_get(&r);
 }
 
-static bool find_route(int table_id, const char *dst_ip,
+static bool find_route(unsigned int table_id, const char *dst_ip,
 			int prefix_len, int ifindex)
 {
 	struct route_data r = {0};
@@ -425,7 +425,8 @@ static bool find_route(int table_id, const char *dst_ip,
 	return rtm_get(&r);
 }
 
-static bool find_default_route(int table_id, const char *gw_ip, int ifindex)
+static bool find_default_route(unsigned int table_id, const char *gw_ip,
+				int ifindex)
 {
 	struct route_data r = {0};
 	r.table_id = table_id;

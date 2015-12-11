@@ -372,9 +372,9 @@ const char *__connman_ipconfig_get_gateway(struct connman_ipconfig *ipconfig);
 void __connman_ipconfig_set_gateway(struct connman_ipconfig *ipconfig, const char *gateway);
 unsigned char __connman_ipconfig_get_prefixlen(struct connman_ipconfig *ipconfig);
 void __connman_ipconfig_set_prefixlen(struct connman_ipconfig *ipconfig, unsigned char prefixlen);
-int __connman_ipconfig_get_mpath_table(struct connman_ipconfig *ipconfig);
+unsigned int __connman_ipconfig_get_mpath_table(struct connman_ipconfig *ipconfig);
 void __connman_ipconfig_set_mpath_table(struct connman_ipconfig *ipconfig,
-					int table_id);
+					unsigned int table_id);
 
 int __connman_ipconfig_enable(struct connman_ipconfig *ipconfig);
 int __connman_ipconfig_disable(struct connman_ipconfig *ipconfig);
@@ -947,12 +947,12 @@ int __connman_6to4_check(struct connman_ipconfig *ipconfig);
 
 int __connman_multipath_set(int index, enum connman_multipath_state state);
 int __connman_multipath_configure(int index,
-					int table_id,
+					unsigned int table_id,
 					const char *host,
 					const char *gateway,
 					int prefix_len);
 int __connman_multipath_clean(int index,
-				int table_id,
+				unsigned int table_id,
 				const char *host,
 				const char *gateway,
 				int prefix_len);
