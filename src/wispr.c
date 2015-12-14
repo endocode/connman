@@ -178,8 +178,10 @@ static void free_connman_wispr_portal_context(
 	if (wp_context->request_id > 0)
 		g_web_cancel_request(wp_context->web, wp_context->request_id);
 
-	if (wp_context->timeout > 0)
+	if (wp_context->timeout > 0) {
 		g_source_remove(wp_context->timeout);
+		wp_context->timeout = 0;
+	}
 
 	if (wp_context->web)
 		g_web_unref(wp_context->web);
