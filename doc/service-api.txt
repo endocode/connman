@@ -507,3 +507,12 @@ Properties	string State [readonly]
 			The request for link monitoring will timeout
 			after certain amount of time in seconds.
 			Default is 0 (disabled).
+
+		bool MultipathRouting [readwrite]
+
+			If set to true it will generate a source ip based
+			routing table when service goes to READY state. When
+			turned off the tables will be deleted. When turned on,
+			they will appear if service is in state READY or ONLINE.
+
+			This is meant to be used for Multipath TCP.

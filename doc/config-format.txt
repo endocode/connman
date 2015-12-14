@@ -63,6 +63,8 @@ Allowed fields:
 - SearchDomains: Comma separated list of DNS search domains
 - Timeservers: Comma separated list of timeservers
 - Domain: Domain name to be used
+- MultipathRouting: If set to true it will generate a source ip based routing
+table when service goes to READY state.
 
 If IPv4 address is missing then DHCP is used. If IPv6 address is missing,
 then SLAAC or DHCPv6 is used.
