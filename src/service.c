@@ -3380,6 +3380,9 @@ int __connman_service_reset_ipconfig(struct connman_service *service,
 		new_method = __connman_ipconfig_get_method(new_ipconfig);
 	}
 
+	/* Clear old multipath routing tables. */
+	multipath_del_service_table(ipconfig, index);
+
 	if (is_connecting_state(service, state) ||
 					is_connected_state(service, state))
 		__connman_network_clear_ipconfig(service->network, ipconfig);
