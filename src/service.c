@@ -3295,6 +3295,10 @@ static int multipath_add_service_table(struct connman_ipconfig *ipconfig,
 		return -1;
 	}
 
+	if (__connman_ipconfig_get_mpath_table(ipconfig))
+		/* table exists, don't recreate */
+		return -1;
+
 	DBG("add service route for ifidx %d in table %d", ifindex, table_id);
 	ret = __connman_multipath_configure(ifindex, table_id,
 						local, gw, prefix);
@@ -3316,6 +3320,10 @@ static int multipath_del_service_table(struct connman_ipconfig *ipconfig,
 	unsigned char prefix = __connman_ipconfig_get_prefixlen(ipconfig);
 	int table_id = __connman_ipconfig_get_mpath_table(ipconfig);
 	int ret;
+
+	if (!table_id)
+		/* don't delete something that is not there */
+		return -1;
 
 	DBG("del service route for ifidx %d in table %d", ifindex, table_id);
 	ret = __connman_multipath_clean(ifindex, table_id,
