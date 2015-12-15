@@ -913,8 +913,11 @@ static int wispr_portal_detect(struct connman_wispr_portal_context *wp_context)
 			free_connman_wispr_portal_context(wp_context);
 		}
 	} else if (wp_context->timeout == 0) {
+		/* Get no_proxy_callback triggered a bit later, as a
+		 * workaround to avoid occasional crash after
+		 * no_proxy_callback has returned. */
 		wp_context->timeout =
-			g_timeout_add_seconds(0, no_proxy_callback, wp_context);
+			g_timeout_add_seconds(1, no_proxy_callback, wp_context);
 	}
 
 done:
