@@ -49,6 +49,8 @@ struct route_data {
 	int dst_preflen;
 
 	const char *gw;
+
+	unsigned fwmark;
 };
 
 struct test_ctx {
@@ -100,7 +102,15 @@ static bool check_rule_attrs(const struct nlmsghdr *hdr,
 				return false;
 			}
 			break;
+		case FRA_FWMARK:
+			if (d->fwmark &&
+				d->fwmark != *((unsigned *) RTA_DATA(attr))) {
+				DBG("failed checking FRA_FWMARK");
+				return false;
+			}
+			break;
 		}
+
 	}
 
 	return true;
@@ -272,6 +282,11 @@ static bool rtm_get(struct route_data *data)
 
 	}
 
+	if (data->fwmark) {
+		__connman_inet_rtnl_addattr32(&rth->req.n, sizeof(rth->req),
+						FRA_FWMARK, data->fwmark);
+	}
+
 	ret = __connman_inet_rtnl_open(rth);
 	if (ret < 0) {
 		connman_error("can't open rtnetlink channel");
@@ -411,6 +426,19 @@ static bool find_rule(unsigned int table_id, const char *src_ip)
 	return rtm_get(&r);
 }
 
+static bool find_rule_fwmark_src(unsigned int table_id, unsigned fwmark,
+					const char *src_ip)
+{
+	struct route_data r = {0};
+	r.table_id = table_id;
+	r.fwmark = fwmark;
+	r.src = src_ip;
+	r.cmd = RTM_GETRULE;
+	r.family = connman_inet_check_ipaddress(src_ip);
+
+	return rtm_get(&r);
+}
+
 static bool find_route(unsigned int table_id, const char *dst_ip,
 			int prefix_len, int ifindex)
 {
@@ -491,6 +519,33 @@ static void test_multipath_config_ipv6(void)
 	g_assert(clear == 0);
 }
 
+static void test_inet_fwmark_ipv4(void)
+{
+	int ifidx = if_nametoindex("dummy0");
+	g_assert(ifidx > 0);
+
+	__connman_inet_add_src_fwmark_rule(100, AF_INET, 567, "1.1.1.2");
+	g_assert_true(find_rule_fwmark_src(100, 567, "1.1.1.2"));
+
+	__connman_inet_del_src_fwmark_rule(100, AF_INET, 567, "1.1.1.2");
+	g_assert_false(find_rule_fwmark_src(100, 567, "1.1.1.2"));
+}
+
+static void test_inet_fwmark_ipv6(void)
+{
+	int ifidx = if_nametoindex("dummy0");
+	char ll_addr[INET6_ADDRSTRLEN + 1];
+
+	g_assert(ifidx > 0);
+	g_assert(get_dev_ipv6_ll_addr("dummy0", ll_addr) == 0);
+
+	__connman_inet_add_src_fwmark_rule(200, AF_INET6, 222, "2001::1");
+	g_assert_true(find_rule_fwmark_src(200, 222, "2001::1"));
+
+	__connman_inet_del_src_fwmark_rule(200, AF_INET6, 222, "2001::1");
+	g_assert_false(find_rule_fwmark_src(200, 222, "2001::1"));
+}
+
 static void test_setup()
 {
 	if (system("modprobe dummy"))
@@ -524,6 +579,10 @@ int main(int argc, char *argv[])
 		test_multipath_config_ipv4);
 	g_test_add_func("/multipath/test_multipath_config_ipv6",
 		test_multipath_config_ipv6);
+	g_test_add_func("/multipath/test_inet_fwmark_ipv4",
+		test_inet_fwmark_ipv4);
+	g_test_add_func("/multipath/test_inet_fwmark_ipv6",
+		test_inet_fwmark_ipv6);
 
 	ret = g_test_run();
 
