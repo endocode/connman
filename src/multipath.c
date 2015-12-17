@@ -164,31 +164,6 @@ static int multipath_table_modify(int cmd, int family, int ifindex,
 }
 
 
-/* str addr -> generic network order bytes */
-static int host2addr(int family, const char *host_str, char *addr_dst)
-{
-	unsigned addr_len;
-
-	switch (family) {
-	case AF_UNSPEC:
-		family = AF_INET;
-	case AF_INET:
-		addr_len = 4;
-		break;
-	case AF_INET6:
-		addr_len = 16;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	/* Set source IP. */
-	if (inet_pton(family, host_str, addr_dst) <= 0)
-		return -EINVAL;
-
-	return addr_len;
-}
-
 /*
  * Turn a given addr into a network based on prefix len: A.B.C.D/24 -> A.B.C.0.
  */
@@ -240,7 +215,7 @@ static int multipath_modify(enum multipath_cmd cmd,
 
 	int ret;
 
-	addr_len = host2addr(family, host, addr);
+	addr_len = connman_inet_host2addr(family, host, addr);
 	if (addr_len < 0) {
 		connman_error("bad specified ip %s", host);
 		return -EINVAL;

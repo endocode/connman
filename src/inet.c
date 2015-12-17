@@ -2716,8 +2716,33 @@ out:
 	return err;
 }
 
+/* str addr -> network byte order, returns byte length */
+int connman_inet_host2addr(int family, const char *host_str, char *addr_dst)
+{
+	unsigned addr_len;
+
+	switch (family) {
+	case AF_UNSPEC:
+		family = AF_INET;
+	case AF_INET:
+		addr_len = 4;
+		break;
+	case AF_INET6:
+		addr_len = 16;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* Set source IP. */
+	if (inet_pton(family, host_str, addr_dst) <= 0)
+		return -EINVAL;
+
+	return addr_len;
+}
+
 static int iprule_modify(int cmd, int family, uint32_t table_id,
-			uint32_t fwmark)
+				uint32_t fwmark, const char *from)
 {
 	struct __connman_inet_rtnl_handle rth;
 	int ret;
@@ -2753,6 +2778,18 @@ static int iprule_modify(int cmd, int family, uint32_t table_id,
 	if (rth.req.u.r.rt.rtm_family == AF_UNSPEC)
 		rth.req.u.r.rt.rtm_family = AF_INET;
 
+
+	if (from) {
+		char addr[sizeof(struct in6_addr)];
+		int addr_len = connman_inet_host2addr(
+			rth.req.u.r.rt.rtm_family, from, addr);
+		if (addr_len > 0) {
+			__connman_inet_rtnl_addattr_l(&rth.req.n, sizeof(rth.req),
+					FRA_SRC, addr, addr_len);
+			rth.req.u.r.rt.rtm_src_len = addr_len * 8;
+		}
+	}
+
 	ret = __connman_inet_rtnl_open(&rth);
 	if (ret < 0)
 		goto done;
@@ -2769,12 +2806,26 @@ int __connman_inet_add_fwmark_rule(uint32_t table_id, int family, uint32_t fwmar
 {
 	/* ip rule add fwmark 9876 table 1234 */
 
-	return iprule_modify(RTM_NEWRULE, family, table_id, fwmark);
+	return iprule_modify(RTM_NEWRULE, family, table_id, fwmark, NULL);
 }
 
 int __connman_inet_del_fwmark_rule(uint32_t table_id, int family, uint32_t fwmark)
 {
-	return iprule_modify(RTM_DELRULE, family, table_id, fwmark);
+	return iprule_modify(RTM_DELRULE, family, table_id, fwmark, NULL);
+}
+
+int __connman_inet_add_src_fwmark_rule(uint32_t table_id, int family,
+					uint32_t fwmark, const char *from)
+{
+	/* ip rule add from 10.1.1.2 fwmark 9876 table 1234 */
+
+	return iprule_modify(RTM_NEWRULE, family, table_id, fwmark, from);
+}
+
+int __connman_inet_del_src_fwmark_rule(uint32_t table_id, int family,
+					uint32_t fwmark, const char *from)
+{
+	return iprule_modify(RTM_DELRULE, family, table_id, fwmark, from);
 }
 
 static int iproute_default_modify(int cmd, uint32_t table_id, int ifindex,

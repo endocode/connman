@@ -77,6 +77,8 @@ int connman_inet_check_ipaddress(const char *host);
 bool connman_inet_check_hostname(const char *ptr, size_t len);
 bool connman_inet_is_ipv6_supported();
 
+int connman_inet_host2addr(int family, const char *host_str, char *addr_dst);
+
 #ifdef __cplusplus
 }
 #endif
