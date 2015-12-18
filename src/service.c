@@ -2395,8 +2395,9 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 	connman_dbus_dict_append_basic(dict, "Immutable",
 					DBUS_TYPE_BOOLEAN, &val);
 
+	val = service->mpath_routing;
 	connman_dbus_dict_append_basic(dict, "MultipathRouting",
-				DBUS_TYPE_BOOLEAN, &service->mpath_routing);
+				DBUS_TYPE_BOOLEAN, &val);
 
 	str = mpathstate2string(service->mpath);
 	if (str)
