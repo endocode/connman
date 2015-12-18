@@ -134,6 +134,7 @@ void connman_service_create_ip4config(struct connman_service *service,
 								int index);
 void connman_service_create_ip6config(struct connman_service *service,
 								int index);
+bool connman_service_multipath_routing(struct connman_service *service);
 
 #ifdef __cplusplus
 }

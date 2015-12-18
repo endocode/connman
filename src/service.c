@@ -3372,6 +3372,11 @@ static void multipath_del_service_tables(struct connman_service *service)
 		multipath_del_service_table(service->ipconfig_ipv6, ifindex);
 }
 
+bool connman_service_multipath_routing(struct connman_service *service)
+{
+	return service->mpath_routing;
+}
+
 int __connman_service_reset_ipconfig(struct connman_service *service,
 		enum connman_ipconfig_type type, DBusMessageIter *array,
 		enum connman_service_state *new_state)
