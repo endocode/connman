@@ -74,6 +74,9 @@ struct connman_session {
 	int index;
 	char *gateway;
 	bool policy_routing;
+
+	GSList *mpath_services;
+	bool mpath_services_event;
 };
 
 struct connman_service_info {
@@ -306,6 +309,119 @@ static void cleanup_firewall_session(struct connman_session *session)
 	session->fw = NULL;
 }
 
+static int add_mpath_service_rule(struct connman_session *session,
+					struct connman_service *service,
+					int family)
+{
+	struct connman_ipconfig *ipconfig;
+	unsigned table_id;
+	const char *src;
+	enum connman_ipconfig_type type = CONNMAN_IPCONFIG_TYPE_UNKNOWN;
+	int err;
+
+	if (!connman_service_multipath_routing(service)) {
+		DBG("no mpath routing");
+		return 0;
+	}
+
+	if (family == AF_INET)
+		type = CONNMAN_IPCONFIG_TYPE_IPV4;
+	else if (family == AF_INET6)
+		type = CONNMAN_IPCONFIG_TYPE_IPV6;
+
+	ipconfig = __connman_service_get_ipconfig(service, family);
+	if (!ipconfig || !__connman_service_is_connected_state(service, type)) {
+		DBG("no not connected, family %d", family);
+		return 0;
+	}
+
+	table_id = __connman_ipconfig_get_mpath_table(ipconfig);
+	src = __connman_ipconfig_get_local(ipconfig);
+
+	err = __connman_inet_add_src_fwmark_rule(table_id, family,
+							session->mark, src);
+	if (err)
+		connman_warn("add_mpath_service_rule: can't add rule %d:%s",
+				session->mark, src);
+
+	DBG("added rule: from %s fwmark %d lookup %u",
+		src, session->mark, table_id);
+
+	return err;
+}
+
+static int del_mpath_service_rule(struct connman_session *session,
+					struct connman_service *service,
+					int family)
+{
+	struct connman_ipconfig *ipconfig;
+	unsigned table_id;
+	const char *src;
+
+	ipconfig = __connman_service_get_ipconfig(service, family);
+	if (!ipconfig)
+		return 0;
+
+	src = __connman_ipconfig_get_local(ipconfig);
+	if (!src)
+		return 0;
+
+	/* don't check for connectedness or mpath enabled, just try deletion */
+	table_id = __connman_ipconfig_get_mpath_table(ipconfig);
+
+	DBG("deleting rule: from %s fwmark %d lookup %u",
+		src, session->mark, table_id);
+
+	return __connman_inet_del_src_fwmark_rule(table_id, family,
+							session->mark, src);
+}
+
+static int init_mpath_routing_rules(struct connman_session *session)
+{
+	GSList *it;
+
+	if (!session->policy_routing)
+		return 0;
+
+	for (it = session->mpath_services; it; it = it->next) {
+		struct connman_service *service = it->data;
+
+		if (!service) {
+			connman_warn("NULL in mpath route table");
+			continue;
+		}
+
+		add_mpath_service_rule(session, service, AF_INET);
+		add_mpath_service_rule(session, service, AF_INET6);
+	}
+
+	return 0;
+}
+
+static int clear_mpath_routing_rules(struct connman_session *session)
+{
+	GSList *it;
+
+	if (!session->policy_routing)
+		return 0;
+
+	for (it = session->mpath_services; it; it = it->next) {
+		struct connman_service *service = it->data;
+
+		if (!service) {
+			connman_warn("NULL in mpath route table");
+			continue;
+		}
+
+		del_mpath_service_rule(session, service, AF_INET);
+		del_mpath_service_rule(session, service, AF_INET6);
+	}
+
+	g_slist_free(session->mpath_services);
+
+	return 0;
+}
+
 static int init_routing_table(struct connman_session *session)
 {
 	int err;
@@ -498,6 +614,7 @@ static void cleanup_session(gpointer user_data)
 
 	DBG("remove %s", session->session_path);
 
+	clear_mpath_routing_rules(session);
 	cleanup_routing_table(session);
 	cleanup_firewall_session(session);
 
@@ -519,6 +636,7 @@ struct creation_data {
 	/* user config */
 	enum connman_session_type type;
 	GSList *allowed_bearers;
+	GSList *mpath_services;
 };
 
 static void cleanup_creation_data(struct creation_data *creation_data)
@@ -530,6 +648,9 @@ static void cleanup_creation_data(struct creation_data *creation_data)
 		dbus_message_unref(creation_data->pending);
 
 	g_slist_free(creation_data->allowed_bearers);
+
+	g_slist_free(creation_data->mpath_services);
+
 	g_free(creation_data);
 }
 
@@ -636,6 +757,8 @@ static enum connman_session_type apply_policy_on_type(
 	return CONNMAN_SESSION_TYPE_INTERNET;
 }
 
+typedef int item_parse_func_t(const char *token, GSList **list);
+
 int connman_session_parse_bearers(const char *token, GSList **list)
 {
 	enum connman_service_type bearer;
@@ -658,7 +781,26 @@ int connman_session_parse_bearers(const char *token, GSList **list)
 	return 0;
 }
 
-static int parse_bearers(DBusMessageIter *iter, GSList **list)
+static int parse_mpath_service(const char *token, GSList **list)
+{
+	struct connman_service *service;
+
+	service = __connman_service_lookup_from_ident(token);
+	if (!service) {
+		connman_warn("MultipathRoutedServices: service %s not found",
+			     token);
+		return -ENOENT;
+	}
+
+	*list = g_slist_append(*list, GINT_TO_POINTER(service));
+
+	DBG("MultipathRoutedServices: added service %s", token);
+
+	return 0;
+}
+
+static int parse_string_array(DBusMessageIter *iter, GSList **list,
+							item_parse_func_t cb)
 {
 	DBusMessageIter array;
 	int type, err;
@@ -669,7 +811,7 @@ static int parse_bearers(DBusMessageIter *iter, GSList **list)
 
 	while ((type = dbus_message_iter_get_arg_type(&array)) !=
 			DBUS_TYPE_INVALID) {
-		char *bearer_name = NULL;
+		char *item = NULL;
 
 		if (type != DBUS_TYPE_STRING) {
 			g_slist_free(*list);
@@ -677,9 +819,9 @@ static int parse_bearers(DBusMessageIter *iter, GSList **list)
 			return -EINVAL;
 		}
 
-		dbus_message_iter_get_basic(&array, &bearer_name);
+		dbus_message_iter_get_basic(&array, &item);
 
-		err = connman_session_parse_bearers(bearer_name, list);
+		err = cb(item, list);
 		if (err < 0) {
 			g_slist_free(*list);
 			*list = NULL;
@@ -748,6 +890,19 @@ static void append_allowed_bearers(DBusMessageIter *iter, void *user_data)
 
 		dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
 						&name);
+	}
+}
+
+static void append_services(DBusMessageIter *iter, void *user_data)
+{
+	GSList *mpath_services = user_data;
+	GSList *it;
+
+	for (it = mpath_services; it; it = it->next) {
+		struct connman_service *service = it->data;
+		const char *name = __connman_service_get_ident(service);
+
+		dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &name);
 	}
 }
 
@@ -873,6 +1028,15 @@ static void append_notify(DBusMessageIter *dict,
 		info_last->config.allowed_bearers = info->config.allowed_bearers;
 	}
 
+	if (session->append_all || session->mpath_services_event) {
+		connman_dbus_dict_append_array(dict, "MultipathRoutedServices",
+						DBUS_TYPE_STRING,
+						append_services,
+						session->mpath_services);
+
+		session->mpath_services_event = false;
+	}
+
 	session->append_all = false;
 }
 
@@ -893,6 +1057,9 @@ static bool compute_notifiable_changes(struct connman_session *session)
 
 	if (info->config.allowed_bearers != info_last->config.allowed_bearers ||
 			info->config.type != info_last->config.type)
+		return true;
+
+	if (session->mpath_services_event)
 		return true;
 
 	return false;
@@ -1079,7 +1246,8 @@ static DBusMessage *change_session(DBusConnection *conn,
 	switch (dbus_message_iter_get_arg_type(&value)) {
 	case DBUS_TYPE_ARRAY:
 		if (g_str_equal(name, "AllowedBearers")) {
-			err = parse_bearers(&value, &allowed_bearers);
+			err = parse_string_array(&value, &allowed_bearers,
+						connman_session_parse_bearers);
 			if (err < 0)
 				return __connman_error_failed(msg, -err);
 
@@ -1098,6 +1266,23 @@ static DBusMessage *change_session(DBusConnection *conn,
 					&info->config.allowed_bearers);
 
 			session_activate(session);
+		} else if (g_str_equal(name, "MultipathRoutedServices")) {
+			GSList *services;
+			err = parse_string_array(&value, &services,
+						 parse_mpath_service);
+			if (err < 0)
+				return __connman_error_failed(msg, -err);
+
+			/* disable old rules, clear list */
+			clear_mpath_routing_rules(session);
+
+			/* set new list, enable rules */
+			session->mpath_services = services;
+			init_mpath_routing_rules(session);
+
+			/* set change */
+			session->mpath_services_event = true;
+
 		} else {
 			goto err;
 		}
@@ -1246,6 +1431,10 @@ static int session_policy_config_cb(struct connman_session *session,
 			session->user_allowed_bearers,
 			&info->config.allowed_bearers);
 
+	session->mpath_services = creation_data->mpath_services;
+	creation_data->mpath_services = NULL;
+	init_mpath_routing_rules(session);
+
 	g_hash_table_replace(session_hash, session->session_path, session);
 
 	DBG("add %s", session->session_path);
@@ -1339,12 +1528,21 @@ int __connman_session_create(DBusMessage *msg)
 		switch (dbus_message_iter_get_arg_type(&value)) {
 		case DBUS_TYPE_ARRAY:
 			if (g_str_equal(key, "AllowedBearers")) {
-				err = parse_bearers(&value,
-					&creation_data->allowed_bearers);
+				err = parse_string_array(&value,
+					&creation_data->allowed_bearers,
+					connman_session_parse_bearers
+				);
 				if (err < 0)
 					goto err;
 
 				user_allowed_bearers = true;
+			} else if (g_str_equal(key, "MultipathRoutedServices")) {
+				err = parse_string_array(&value,
+					&creation_data->mpath_services,
+					parse_mpath_service
+				);
+				if (err < 0)
+					goto err;
 			} else {
 				err = -EINVAL;
 				goto err;
