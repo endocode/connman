@@ -54,7 +54,7 @@ class Notification(dbus.service.Object):
 			for key in settings.keys():
 				if key in ["IPv4", "IPv6"]:
 					val = extract_values(settings[key])
-				elif key in  ["AllowedBearers"]:
+				elif key in  ["AllowedBearers", "MultipathRoutedServices"]:
 					val = extract_list(settings[key])
 				else:
 					val = settings[key]
@@ -110,7 +110,7 @@ class SessionApplication(dbus.service.Object):
 		del self.sessions[session_name]
 
 	def type_convert(self, key, value):
-		if key in [ "AllowedBearers" ]:
+		if key in [ "AllowedBearers", "MultipathRoutedServices" ]:
 			return value
 		elif key in [ "RoamingPolicy", "ConnectionType" ]:
 			if len(value) > 0:
