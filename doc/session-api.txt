@@ -182,3 +182,25 @@ Settings	string State [readonly]
 			(This setting will be removed when the unique process
 			identification problem is solved.)
 
+		array{string} MultipathRoutedServices [readwrite]
+
+			This is used to install source ip + policy based rules
+			for every service in this list in state READY
+			or ONLINE.
+
+			This setting works only if session policy is enabled
+			and only for services that have MultipathRouting
+			enabled.
+
+			Let's take an example:
+
+			32761:  from 10.10.2.2 fwmark 0x100 lookup 262
+			32762:  from all fwmark 0x100 lookup 256
+			32763:  from 10.10.3.2 lookup 264
+			32764:  from 10.10.2.2 lookup 262
+			32765:  from 10.10.1.2 lookup 260
+
+			We have 3 MultipathRouting enabled services here,
+			which use source based routing to tables 260, 262, 264.
+			Our session selected only one of these services so one
+			rule will be installed to lookup for table 262.
