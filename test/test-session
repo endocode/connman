@@ -324,7 +324,10 @@ def main():
 			print "Arguments missing"
 			sys.exit(1)
 
-		app.Change(sys.argv[3], sys.argv[4], sys.argv[5:])
+		if len(sys.argv) == 5:
+			app.Change(sys.argv[3], sys.argv[4], [""])
+		else:
+			app.Change(sys.argv[3], sys.argv[4], sys.argv[5:])
 
 	elif sys.argv[1] == "configure":
 		if len(sys.argv) < 5:

@@ -785,6 +785,10 @@ static int parse_mpath_service(const char *token, GSList **list)
 {
 	struct connman_service *service;
 
+	if (g_strcmp0(token, "") == 0)
+		/* allow empty rules for clearing */
+		return 0;
+
 	service = __connman_service_lookup_from_ident(token);
 	if (!service) {
 		connman_warn("MultipathRoutedServices: service %s not found",
