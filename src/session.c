@@ -422,6 +422,50 @@ static int clear_mpath_routing_rules(struct connman_session *session)
 	return 0;
 }
 
+/* Deletes all rules for this service in sessions that have it. */
+static int del_mpath_service_rules(struct connman_service *service)
+{
+	GHashTableIter iter;
+	gpointer key, value;
+	struct connman_session *session;
+	int changes = 0;
+
+	DBG("");
+
+	g_hash_table_iter_init(&iter, session_hash);
+	while (g_hash_table_iter_next(&iter, &key, &value)) {
+		GSList *it;
+		int local_changes = 0;
+
+		session = value;
+
+		for (it = session->mpath_services; it; it = it->next) {
+			struct connman_service *srv = it->data;
+
+			if (service != srv)
+				continue;
+
+			del_mpath_service_rule(session, service, AF_INET);
+			del_mpath_service_rule(session, service, AF_INET6);
+
+			session->mpath_services_event = true;
+
+			local_changes++;
+		}
+
+		if (!local_changes)
+			continue;
+
+		session->mpath_services = g_slist_remove_all(
+			session->mpath_services, service);
+		changes += local_changes;
+	}
+
+	DBG("deleted %d rules", changes);
+
+	return changes;
+}
+
 static int init_routing_table(struct connman_session *session)
 {
 	int err;
@@ -1883,6 +1927,8 @@ static void handle_service_state_offline(struct connman_service *service,
 					struct connman_service_info *info)
 {
 	GSList *list;
+
+	del_mpath_service_rules(service);
 
 	for (list = info->sessions; list; list = list->next) {
 		struct connman_session *session = list->data;
