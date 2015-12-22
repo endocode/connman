@@ -373,7 +373,7 @@ static int del_mpath_service_rule(struct connman_session *session,
 		src, session->mark, table_id);
 
 	return __connman_inet_del_src_fwmark_rule(table_id, family,
-							session->mark, src);
+							0, src);
 }
 
 static int init_mpath_routing_rules(struct connman_session *session)
