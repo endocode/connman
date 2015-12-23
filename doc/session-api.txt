@@ -204,3 +204,6 @@ Settings	string State [readonly]
 			which use source based routing to tables 260, 262, 264.
 			Our session selected only one of these services so one
 			rule will be installed to lookup for table 262.
+
+			Every time this is set, the previous entries are cleared.
+			To disable this set an empty list.
