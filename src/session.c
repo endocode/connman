@@ -352,7 +352,7 @@ static int add_mpath_service_rule(struct connman_session *session,
 
 static int del_mpath_service_rule(struct connman_session *session,
 					struct connman_service *service,
-					int family)
+					int family, int mark)
 {
 	struct connman_ipconfig *ipconfig;
 	unsigned table_id;
@@ -370,10 +370,10 @@ static int del_mpath_service_rule(struct connman_session *session,
 	table_id = __connman_ipconfig_get_mpath_table(ipconfig);
 
 	DBG("deleting rule: from %s fwmark %d lookup %u",
-		src, session->mark, table_id);
+		src, mark, table_id);
 
 	return __connman_inet_del_src_fwmark_rule(table_id, family,
-							0, src);
+							mark, src);
 }
 
 static int init_mpath_routing_rules(struct connman_session *session)
@@ -413,8 +413,10 @@ static int clear_mpath_routing_rules(struct connman_session *session)
 			continue;
 		}
 
-		del_mpath_service_rule(session, service, AF_INET);
-		del_mpath_service_rule(session, service, AF_INET6);
+		del_mpath_service_rule(session, service, AF_INET,
+						session->mark);
+		del_mpath_service_rule(session, service, AF_INET6,
+						session->mark);
 	}
 
 	g_slist_free(session->mpath_services);
@@ -445,8 +447,12 @@ static int del_mpath_service_rules(struct connman_service *service)
 			if (service != srv)
 				continue;
 
-			del_mpath_service_rule(session, service, AF_INET);
-			del_mpath_service_rule(session, service, AF_INET6);
+			/*
+			 * Mark is 0 because we are actually deleting the
+			 * service rule here.
+			 */
+			del_mpath_service_rule(session, service, AF_INET, 0);
+			del_mpath_service_rule(session, service, AF_INET6, 0);
 
 			session->mpath_services_event = true;
 
