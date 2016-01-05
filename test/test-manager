@@ -91,3 +91,9 @@ for (path, properties) in technologies:
 			val = properties[key]
 
 		print "        %s = %s" % (key, val)
+
+print("Sessions")
+sessions = manager.GetSessions()
+
+for session in sessions:
+	print "    %s" % (session)
