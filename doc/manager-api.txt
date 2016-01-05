@@ -137,6 +137,10 @@ Methods		dict GetProperties()
 			If an application exits unexpectatly the session
 			will be automatically destroyed.
 
+		array{object} GetSessions() [experimental]
+
+			Returns an array of of session objects paths.
+
 		object path, dict, fd RequestPrivateNetwork(dict options)
 								[experimental]
 
