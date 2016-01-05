@@ -1748,6 +1748,24 @@ int __connman_session_destroy(DBusMessage *msg)
 	return 0;
 }
 
+int __connman_session_list(DBusMessageIter *iter)
+{
+	GHashTableIter hiter;
+	gpointer key, value;
+
+	DBG("");
+
+	g_hash_table_iter_init(&hiter, session_hash);
+	while (g_hash_table_iter_next(&hiter, &key, &value)) {
+		struct connman_session *session = value;
+
+		dbus_message_iter_append_basic(iter, DBUS_TYPE_OBJECT_PATH,
+								&session->session_path);
+	}
+
+	return 0;
+}
+
 int connman_session_connect(struct connman_service *service)
 {
 	DBG("service %p name %s", service, __connman_service_get_name(service));

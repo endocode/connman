@@ -345,6 +345,27 @@ static DBusMessage *destroy_session(DBusConnection *conn,
 	return g_dbus_create_reply(msg, DBUS_TYPE_INVALID);
 }
 
+static void append_sessions(DBusMessageIter *iter, void *user_data)
+{
+	__connman_session_list(iter);
+}
+
+static DBusMessage *get_sessions(DBusConnection *conn,
+					DBusMessage *msg, void *data)
+{
+	DBusMessage *reply;
+
+	reply = dbus_message_new_method_return(msg);
+	if (!reply)
+		return NULL;
+
+	__connman_dbus_append_objpath_array(reply,
+			append_sessions, NULL);
+
+	return reply;
+
+}
+
 static DBusMessage *request_private_network(DBusConnection *conn,
 					DBusMessage *msg, void *data)
 {
@@ -544,6 +565,9 @@ static const GDBusMethodTable manager_methods[] = {
 	{ GDBUS_METHOD("DestroySession",
 			GDBUS_ARGS({ "session", "o" }), NULL,
 			destroy_session) },
+	{ GDBUS_METHOD("GetSessions",
+			NULL, GDBUS_ARGS({ "sessions", "a(o)" }),
+			get_sessions) },
 	{ GDBUS_ASYNC_METHOD("RequestPrivateNetwork",
 			      NULL, GDBUS_ARGS({ "path", "o" },
 					       { "settings", "a{sv}" },

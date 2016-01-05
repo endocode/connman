@@ -880,6 +880,7 @@ bool __connman_session_policy_autoconnect(enum connman_service_connect_reason re
 
 int __connman_session_create(DBusMessage *msg);
 int __connman_session_destroy(DBusMessage *msg);
+int __connman_session_list(DBusMessageIter *msg);
 
 int __connman_session_init(void);
 void __connman_session_cleanup(void);
