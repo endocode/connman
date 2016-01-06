@@ -3143,16 +3143,17 @@ static unsigned int multipath_get_table_id(struct connman_ipconfig *ipconfig,
 {
 	enum connman_ipconfig_type type;
 	unsigned int ifidx = ifindex;
-	unsigned int table_id = ifidx + 0xff;
+	unsigned int table_id_base = 0xff;
+	/* We can use indexes between 256 and session mark base.  */
+	unsigned int table_id = (ifidx + table_id_base) & 0xffff;
 
-	if (table_id < ifidx) {
+	if (table_id != (ifidx + table_id_base)) {
 		connman_warn("multipath_get_table_id: ifindex %u too high,"
 				"table_id wrap around to %u", ifidx, table_id);
+
 		/*
-		 * We can still use the table_id though.
-		 *
-		 * The assumption the system doesn't use more than 2^32 - 256
-		 * interfaces simmultaneously.
+		 * We can still use the table_id though, even if it
+		 * got wrapped around.
 		 */
 	}
 
