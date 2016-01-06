@@ -1363,6 +1363,24 @@ err:
 	return __connman_error_invalid_arguments(msg);
 }
 
+static void session_existence_signal(struct connman_session *session, bool new)
+{
+	DBusMessage *signal;
+	DBusMessageIter iter;
+	const char *str = new ? "SessionAdded" : "SessionRemoved";
+
+	signal = dbus_message_new_signal(CONNMAN_MANAGER_PATH,
+					CONNMAN_MANAGER_INTERFACE, str);
+	if (!signal)
+		return;
+
+	dbus_message_iter_init_append(signal, &iter);
+	dbus_message_iter_append_basic(&iter, DBUS_TYPE_OBJECT_PATH,
+					&session->session_path);
+	dbus_connection_send(connection, signal, NULL);
+	dbus_message_unref(signal);
+}
+
 static void release_session(gpointer key, gpointer value, gpointer user_data)
 {
 	struct connman_session *session = value;
@@ -1394,6 +1412,8 @@ static int session_disconnect(struct connman_session *session)
 
 	if (session->notify_watch > 0)
 		g_dbus_remove_watch(connection, session->notify_watch);
+
+	session_existence_signal(session, false);
 
 	g_dbus_unregister_interface(connection, session->session_path,
 						CONNMAN_SESSION_INTERFACE);
@@ -1695,6 +1715,8 @@ int __connman_session_create(DBusMessage *msg)
 					creation_data);
 	if (err < 0 && err != -EINPROGRESS)
 		return err;
+
+	session_existence_signal(session, true);
 
 	return -EINPROGRESS;
 

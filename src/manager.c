@@ -600,6 +600,10 @@ static const GDBusSignalTable manager_signals[] = {
 	{ GDBUS_SIGNAL("PeersChanged",
 			GDBUS_ARGS({ "changed", "a(oa{sv})" },
 					{ "removed", "ao" })) },
+	{ GDBUS_SIGNAL("SessionAdded",
+			GDBUS_ARGS({"path", "o"})) },
+	{ GDBUS_SIGNAL("SessionRemoved",
+			GDBUS_ARGS({"path", "o"})) },
 	{ },
 };
 
