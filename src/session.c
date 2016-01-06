@@ -36,7 +36,7 @@ static DBusConnection *connection;
 static GHashTable *session_hash;
 static GHashTable *service_hash;
 static struct connman_session *ecall_session;
-static uint32_t session_mark = 256;
+static uint32_t session_mark = CONNMAN_SESSION_FWMARK_BASE;
 static struct firewall_context *global_firewall = NULL;
 
 enum connman_session_state {
