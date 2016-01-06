@@ -1,0 +1,30 @@
+#!/usr/bin/python
+
+import gobject
+
+import dbus
+import dbus.mainloop.glib
+
+def session_added(path):
+	print "session added %s" % (path)
+
+def session_removed(path):
+	print "session removed %s" % (path)
+
+if __name__ == '__main__':
+	dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+	bus = dbus.SystemBus()
+
+	bus.add_signal_receiver(session_added,
+				bus_name="net.connman",
+				dbus_interface="net.connman.Manager",
+				signal_name="SessionAdded")
+
+	bus.add_signal_receiver(session_removed,
+				bus_name="net.connman",
+				dbus_interface="net.connman.Manager",
+				signal_name="SessionRemoved")
+
+	mainloop = gobject.MainLoop()
+	mainloop.run()
