@@ -1,0 +1,26 @@
+#!/usr/bin/python
+
+import sys
+import dbus
+
+def print_usage():
+	print "Usage: %s <service> <true|on|false|off>" % (sys.argv[0])
+
+
+if (len(sys.argv) < 3):
+	print_usage()
+	sys.exit(1)
+
+bus = dbus.SystemBus()
+path = "/net/connman/service/" + sys.argv[1]
+service = dbus.Interface(bus.get_object('net.connman', path),
+					'net.connman.Service')
+
+properties = service.GetProperties()
+
+print "Setting multipath state for %s to %s" % (sys.argv[2], sys.argv[1])
+
+state = 1 if sys.argv[2] in ["true", "on"] else 0
+service.SetProperty("MultipathRouting", dbus.Boolean(state))
+
+print
