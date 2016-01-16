@@ -6713,6 +6713,17 @@ static int service_register(struct connman_service *service)
 
 	__connman_connection_update_gateway();
 
+	if (service->network) {
+		/* set multipath tcp link state */
+		struct connman_device *device;
+
+		device = connman_network_get_device(service->network);
+		if (device) {
+			int if_index = connman_device_get_index(device);
+			__connman_multipath_set(if_index, service->mpath);
+		}
+	}
+
 	return 0;
 }
 
