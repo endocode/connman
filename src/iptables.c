@@ -1283,7 +1283,7 @@ static void dump_match(struct ipt_entry *entry)
 
 	if (xt_m->print) {
 		DBG("\tmatch ");
-		xt_m->print(NULL, match, 1);
+		xt_m->print((void *)&entry->ip, match, 1);
 
 		return;
 	}
