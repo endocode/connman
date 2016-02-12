@@ -509,6 +509,60 @@ static void test_firewall_basic3(void)
 	__connman_firewall_destroy(ctx);
 }
 
+static void test_firewall_tcp_ext(void)
+{
+	struct firewall_context *ctx;
+	int err;
+
+	ctx = __connman_firewall_create();
+	g_assert(ctx);
+
+	err = __connman_firewall_add_rule(ctx, "mangle", "OUTPUT",
+				"--protocol tcp -m tcp --sport 50 -j LOG");
+	g_assert(err >= 0);
+
+	err = __connman_firewall_enable(ctx);
+	g_assert(err == 0);
+
+	assert_rule_exists("mangle",
+		"-A connman-OUTPUT -p tcp -m tcp --sport 50 -j LOG");
+
+	err = __connman_firewall_disable(ctx);
+	g_assert(err == 0);
+
+	assert_rule_not_exists("mangle",
+		"-A connman-OUTPUT -p tcp -m tcp --sport 50 -j LOG");
+
+	__connman_firewall_destroy(ctx);
+}
+
+static void test_firewall_multiport_ext(void)
+{
+	struct firewall_context *ctx;
+	int err;
+
+	ctx = __connman_firewall_create();
+	g_assert(ctx);
+
+	err = __connman_firewall_add_rule(ctx, "mangle", "OUTPUT",
+			"--protocol udp -m multiport --sports 50,60 -j LOG");
+	g_assert(err >= 0);
+
+	err = __connman_firewall_enable(ctx);
+	g_assert(err == 0);
+
+	assert_rule_exists("mangle",
+		"-A connman-OUTPUT -p udp -m multiport --sports 50,60 -j LOG");
+
+	err = __connman_firewall_disable(ctx);
+	g_assert(err == 0);
+
+	assert_rule_not_exists("mangle",
+		"-A connman-OUTPUT -p udp -m multiport --sports 50,60 -j LOG");
+
+	__connman_firewall_destroy(ctx);
+}
+
 static gchar *option_debug = NULL;
 
 static bool parse_debug(const char *key, const char *value,
@@ -572,6 +626,8 @@ int main(int argc, char *argv[])
 	g_test_add_func("/firewall/basic1", test_firewall_basic1);
 	g_test_add_func("/firewall/basic2", test_firewall_basic2);
 	g_test_add_func("/firewall/basic3", test_firewall_basic3);
+	g_test_add_func("/firewall/tcp_ext", test_firewall_tcp_ext);
+	g_test_add_func("/firewall/multiport_ext", test_firewall_multiport_ext);
 
 	err = g_test_run();
 
