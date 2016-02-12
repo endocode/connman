@@ -207,3 +207,25 @@ Settings	string State [readonly]
 
 			Every time this is set, the previous entries are cleared.
 			To disable this set an empty list.
+
+		array{string} FlowSelectors [readwrite]
+
+			Allow a user to mark packets as being part of the given
+			session based on 5 tuple rules. A 5 tuple rule looks
+			like this:
+
+			<SRC_IP>-<DST_IP>-<PROTOCOL>-<SRC_PORT>-<DST_PORT>
+
+			'*' can be used to ignore this part of the tuple.
+			However if the user needs to set the ports, the
+			protocol is mandatory. Only tcp and udp protocols
+			are supported.
+
+			These rules will translate to iptable rules that look
+			like this:
+
+			iptables -t mangle -A connman-OUTPUT \
+				--source SRC_IP --destination DST_IP \
+				--protocol PROTOCOL --mark PROTOCOL \
+				--sport SRC_PORT --dport DST_PORT \
+				-j MARK --set-mark MARK_ID
