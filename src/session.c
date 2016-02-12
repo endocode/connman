@@ -25,6 +25,8 @@
 #endif
 
 #include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include <gdbus.h>
 
@@ -48,6 +50,20 @@ enum connman_session_state {
 struct session_info {
 	struct connman_session_config config;
 	enum connman_session_state state;
+};
+
+struct flow_selector {
+	char *proto;
+
+	char *src_ip;
+	char *src_port;
+
+	char *dst_ip;
+	char *dst_port;
+
+	char *str;
+
+	int id;
 };
 
 struct connman_session {
@@ -77,6 +93,9 @@ struct connman_session {
 
 	GSList *mpath_services;
 	bool mpath_services_event;
+
+	GSList *flow_selectors;
+	bool flow_selectors_event;
 };
 
 struct connman_service_info {
@@ -241,6 +260,132 @@ static void cleanup_firewall(void)
 
 	__connman_firewall_disable(global_firewall);
 	__connman_firewall_destroy(global_firewall);
+}
+
+static void free_flow_selector(struct flow_selector *flow)
+{
+	if (!flow)
+		return;
+
+#define FREE_ELEMENT(field)		\
+	if (field) {			\
+		free(field);		\
+		field = NULL;		\
+	}
+
+	FREE_ELEMENT(flow->proto);
+	FREE_ELEMENT(flow->src_ip);
+	FREE_ELEMENT(flow->src_port);
+	FREE_ELEMENT(flow->dst_ip);
+	FREE_ELEMENT(flow->dst_port);
+	FREE_ELEMENT(flow->str);
+
+	g_free(flow);
+}
+
+static void clear_flow_selectors(struct connman_session *session)
+{
+	GSList *it;
+
+	for (it = session->flow_selectors; it; it = it->next) {
+		struct flow_selector *flow = it->data;
+		int id = flow->id;
+
+		free_flow_selector(flow);
+
+		if (!id)
+			continue;
+
+		__connman_firewall_disable_rule(session->fw, id);
+		__connman_firewall_remove_rule(session->fw, id);
+	}
+
+	g_slist_free(session->flow_selectors);
+}
+
+static int init_flow_selectors(struct connman_session *session)
+{
+	GSList *it;
+
+	if (!session->fw) {
+		/* If we don't have any policy, the fw ctx does not exist. */
+		struct firewall_context *fw;
+		int err;
+
+		err = init_firewall();
+		if (err < 0)
+			return err;
+
+		fw = __connman_firewall_create();
+		if (!fw)
+			return -ENOMEM;
+
+		session->fw = fw;
+	}
+
+	for (it = session->flow_selectors; it; it = it->next) {
+		struct flow_selector *flow = it->data;
+		char buf[1024] = {0};
+		int id;
+
+		/* TODO ipv6, check size */
+		if (flow->src_ip) {
+			strcat(buf, "--source ");
+			strcat(buf, flow->src_ip);
+		}
+
+		if (flow->dst_ip) {
+			strcat(buf, " --destination ");
+			strcat(buf, flow->dst_ip);
+		}
+
+		if (flow->proto) {
+			strcat(buf, " --protocol ");
+			strcat(buf, flow->proto);
+
+			/* Only tcp and udp will work. It's also possible
+			 * to use multiport extension here but it doesn't
+			 * accept sport and dport together.
+			 */
+			strcat(buf, " -m ");
+			strcat(buf, flow->proto);
+
+			if (flow->src_port) {
+				strcat(buf, " --sport ");
+				strcat(buf, flow->src_port);
+			}
+
+			if (flow->dst_port) {
+				strcat(buf, " --dport ");
+				strcat(buf, flow->dst_port);
+			}
+		}
+
+		DBG("session->fw=%p, str=%s", session->fw, flow->str);
+		id = __connman_firewall_add_rule(session->fw,
+						"mangle",
+						"OUTPUT",
+						"%s -j MARK --set-mark %d",
+						buf, session->mark
+		);
+
+		if (id < 0) {
+			connman_warn("Can't add flow selector fw rule: %s",
+					buf);
+			continue;
+		}
+
+		if (__connman_firewall_enable_rule(session->fw, id) < 0) {
+			connman_warn("Can't enable flow selector fw rule %d: %s",
+					id, buf);
+			__connman_firewall_remove_rule(session->fw, id);
+			continue;
+		}
+
+		flow->id = id;
+	}
+
+	return 0;
 }
 
 static int init_firewall_session(struct connman_session *session)
@@ -664,6 +809,7 @@ static void cleanup_session(gpointer user_data)
 
 	DBG("remove %s", session->session_path);
 
+	clear_flow_selectors(session);
 	clear_mpath_routing_rules(session);
 	cleanup_routing_table(session);
 	cleanup_firewall_session(session);
@@ -687,6 +833,7 @@ struct creation_data {
 	enum connman_session_type type;
 	GSList *allowed_bearers;
 	GSList *mpath_services;
+	GSList *flow_selectors;
 };
 
 static void cleanup_creation_data(struct creation_data *creation_data)
@@ -700,6 +847,8 @@ static void cleanup_creation_data(struct creation_data *creation_data)
 	g_slist_free(creation_data->allowed_bearers);
 
 	g_slist_free(creation_data->mpath_services);
+
+	g_slist_free(creation_data->flow_selectors);
 
 	g_free(creation_data);
 }
@@ -835,6 +984,8 @@ static int parse_mpath_service(const char *token, GSList **list)
 {
 	struct connman_service *service;
 
+	DBG("");
+
 	if (g_strcmp0(token, "") == 0)
 		/* allow empty rules for clearing */
 		return 0;
@@ -849,6 +1000,54 @@ static int parse_mpath_service(const char *token, GSList **list)
 	*list = g_slist_append(*list, GINT_TO_POINTER(service));
 
 	DBG("MultipathRoutedServices: added service %s", token);
+
+	return 0;
+}
+
+static int parse_flow_selector(const char *token, GSList **list)
+{
+	struct flow_selector *flow;
+	int ret;
+
+	DBG("");
+
+	/* allow empty strings for deletion */
+	if (strcmp(token, "") == 0)
+		return 0;
+
+	flow = g_new0(struct flow_selector, 1);
+	if (!flow)
+		return -ENOMEM;
+
+	/* str format: sip-dip-proto-sport-dport */
+	ret = sscanf(token,
+		"%m[0-9a-zA-Z.:*]-%m[0-9a-zA-Z.:*]-%m[a-z*]-%m[0-9*]-%m[0-9*]",
+		&flow->src_ip, &flow->dst_ip,
+		&flow->proto, &flow->src_port, &flow->dst_port
+	);
+	if (ret != 5) {
+		connman_error("Invalid flow format, see docs.");
+		free_flow_selector(flow);
+		return -EINVAL;
+	}
+
+#define REMOVE_STAR(field) 			\
+	if (g_strcmp0(field, "*") == 0) {  	\
+		free(field);			\
+		field = NULL;			\
+	}
+
+	REMOVE_STAR(flow->proto);
+	REMOVE_STAR(flow->src_ip);
+	REMOVE_STAR(flow->src_port);
+	REMOVE_STAR(flow->dst_ip);
+	REMOVE_STAR(flow->dst_port);
+
+	flow->str = strdup(token);
+
+	*list = g_slist_append(*list, GINT_TO_POINTER(flow));
+
+	DBG("FlowSelectors: added selector %s", token);
 
 	return 0;
 }
@@ -957,6 +1156,19 @@ static void append_services(DBusMessageIter *iter, void *user_data)
 		const char *name = __connman_service_get_ident(service);
 
 		dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &name);
+	}
+}
+
+static void append_flow_selectors(DBusMessageIter *iter, void *user_data)
+{
+	GSList *flow_selectors = user_data;
+	GSList *it;
+
+	for (it = flow_selectors; it; it = it->next) {
+		struct flow_selector *flow = it->data;
+
+		dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING,
+						&flow->str);
 	}
 }
 
@@ -1091,6 +1303,15 @@ static void append_notify(DBusMessageIter *dict,
 		session->mpath_services_event = false;
 	}
 
+	if (session->append_all || session->flow_selectors_event) {
+		connman_dbus_dict_append_array(dict, "FlowSelectors",
+						DBUS_TYPE_STRING,
+						append_flow_selectors,
+						session->flow_selectors);
+
+		session->flow_selectors_event = false;
+	}
+
 	session->append_all = false;
 }
 
@@ -1114,6 +1335,9 @@ static bool compute_notifiable_changes(struct connman_session *session)
 		return true;
 
 	if (session->mpath_services_event)
+		return true;
+
+	if (session->flow_selectors_event)
 		return true;
 
 	return false;
@@ -1337,6 +1561,22 @@ static DBusMessage *change_session(DBusConnection *conn,
 			/* set change */
 			session->mpath_services_event = true;
 
+		} else if (g_str_equal(name, "FlowSelectors")) {
+			GSList *flow_selectors;
+			err = parse_string_array(&value, &flow_selectors,
+						 parse_flow_selector);
+			if (err < 0)
+				return __connman_error_failed(msg, -err);
+
+			/* clear old rules */
+			clear_flow_selectors(session);
+
+			/* set new list */
+			session->flow_selectors = flow_selectors;
+			init_flow_selectors(session);
+
+			session->flow_selectors_event = true;
+
 		} else {
 			goto err;
 		}
@@ -1507,6 +1747,10 @@ static int session_policy_config_cb(struct connman_session *session,
 
 	session->mpath_services = creation_data->mpath_services;
 	creation_data->mpath_services = NULL;
+
+	session->flow_selectors = creation_data->flow_selectors;
+	creation_data->flow_selectors = NULL;
+
 	init_mpath_routing_rules(session);
 
 	g_hash_table_replace(session_hash, session->session_path, session);
@@ -1614,6 +1858,13 @@ int __connman_session_create(DBusMessage *msg)
 				err = parse_string_array(&value,
 					&creation_data->mpath_services,
 					parse_mpath_service
+				);
+				if (err < 0)
+					goto err;
+			} else if (g_str_equal(key, "FlowSelectors")) {
+				err = parse_string_array(&value,
+					&creation_data->flow_selectors,
+					parse_flow_selector
 				);
 				if (err < 0)
 					goto err;
