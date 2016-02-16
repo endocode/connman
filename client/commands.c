@@ -1151,6 +1151,15 @@ static int cmd_config(char *args[], int num, struct connman_option *options)
 			index += append.values;
 			break;
 
+		case 'm':
+			res = __connmanctl_dbus_set_property(connection,
+					path, "net.connman.Service",
+					config_return, g_strdup(service_name),
+					"MultipathTcpLink",
+					DBUS_TYPE_STRING, opt_start);
+			index++;
+			break;
+
 		case 'n':
 			res = __connmanctl_dbus_set_property_array(connection,
 					path, "net.connman.Service",
@@ -2211,6 +2220,7 @@ static struct connman_option config_options[] = {
 	               "\t\t\t[exclude <exclude1> [<exclude2>] [...]]"},
 	{"autoconnect", 'a', "yes|no"},
 	{"mpath_routing", 'M', "yes|no"},
+	{"mpath_tcp_link", 'm', "on|backup|off set multipath tcp link state"},
 	{"ipv4", 'i', "off|dhcp|manual <address> <netmask> <gateway>"},
 	{"remove", 'r', "                 Remove service"},
 	{ NULL, }
