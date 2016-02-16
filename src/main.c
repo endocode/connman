@@ -69,6 +69,7 @@ static struct {
 	unsigned int timeout_inputreq;
 	unsigned int timeout_browserlaunch;
 	bool link_monitor;
+	bool multipath_routing;
 	char **blacklisted_interfaces;
 	bool allow_hostname_updates;
 	bool single_tech;
@@ -84,6 +85,7 @@ static struct {
 	.timeout_inputreq = DEFAULT_INPUT_REQUEST_TIMEOUT,
 	.timeout_browserlaunch = DEFAULT_BROWSER_LAUNCH_TIMEOUT,
 	.link_monitor = false,
+	.multipath_routing = false,
 	.blacklisted_interfaces = NULL,
 	.allow_hostname_updates = true,
 	.single_tech = false,
@@ -100,6 +102,7 @@ static struct {
 #define CONF_TIMEOUT_INPUTREQ           "InputRequestTimeout"
 #define CONF_TIMEOUT_BROWSERLAUNCH      "BrowserLaunchTimeout"
 #define CONF_LINK_MONITOR               "LinkMonitor"
+#define CONF_MULTIPATH_ROUTING          "MultipathRouting"
 #define CONF_BLACKLISTED_INTERFACES     "NetworkInterfaceBlacklist"
 #define CONF_ALLOW_HOSTNAME_UPDATES     "AllowHostnameUpdates"
 #define CONF_SINGLE_TECH                "SingleConnectedTechnology"
@@ -116,6 +119,7 @@ static const char *supported_options[] = {
 	CONF_TIMEOUT_INPUTREQ,
 	CONF_TIMEOUT_BROWSERLAUNCH,
 	CONF_LINK_MONITOR,
+	CONF_MULTIPATH_ROUTING,
 	CONF_BLACKLISTED_INTERFACES,
 	CONF_ALLOW_HOSTNAME_UPDATES,
 	CONF_SINGLE_TECH,
@@ -329,6 +333,13 @@ static void parse_config(GKeyFile *config)
 
 	g_clear_error(&error);
 
+	boolean = g_key_file_get_boolean(config, "General",
+						CONF_MULTIPATH_ROUTING, &error);
+	if (!error)
+		connman_settings.multipath_routing = boolean;
+
+	g_clear_error(&error);
+
 	interfaces = __connman_config_get_string_list(config, "General",
 			CONF_BLACKLISTED_INTERFACES, &len, &error);
 
@@ -483,6 +494,7 @@ static gboolean option_dnsproxy = TRUE;
 static gboolean option_backtrace = TRUE;
 static gboolean option_version = FALSE;
 static gboolean option_link_monitor = FALSE;
+static gboolean option_multipath_routing = FALSE;
 
 static bool parse_debug(const char *key, const char *value,
 					gpointer user_data, GError **error)
@@ -525,6 +537,8 @@ static GOptionEntry options[] = {
 				"Show version information and exit" },
 	{ "linkmonitor", 'm', 0, G_OPTION_ARG_NONE, &option_link_monitor,
 				"enable link monitor mode"},
+	{ "mpathrouting", 'M', 0, G_OPTION_ARG_NONE, &option_multipath_routing,
+			"install per service multipath routes by default"},
 	{ NULL },
 };
 
@@ -559,6 +573,9 @@ bool connman_setting_get_bool(const char *key)
 
 	if (g_str_equal(key, CONF_LINK_MONITOR))
 		return connman_settings.link_monitor;
+
+	if (g_str_equal(key, CONF_MULTIPATH_ROUTING))
+		return connman_settings.multipath_routing;
 
 	return false;
 }
@@ -637,6 +654,9 @@ int main(int argc, char *argv[])
 
 	if (option_link_monitor)
 		connman_settings.link_monitor = true;
+
+	if (option_multipath_routing)
+		connman_settings.multipath_routing = true;
 
 	if (mkdir(STORAGEDIR, S_IRUSR | S_IWUSR | S_IXUSR |
 				S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
