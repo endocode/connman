@@ -4803,7 +4803,7 @@ static void service_initialize(struct connman_service *service)
 
 	service->wps = false;
 
-	service->mpath_routing = false;
+	service->mpath_routing = connman_setting_get_bool("MultipathRouting");
 }
 
 /**
