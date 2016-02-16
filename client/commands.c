@@ -1197,6 +1197,31 @@ static int cmd_config(char *args[], int num, struct connman_option *options)
 					config_return, g_strdup(service_name),
 					NULL, NULL);
 			break;
+
+		case 'M':
+			switch (parse_boolean(*opt_start)) {
+			case 1:
+				val = TRUE;
+				break;
+			case 0:
+				val = FALSE;
+				break;
+			default:
+				res = -EINVAL;
+				break;
+			}
+
+			index++;
+
+			if (res == 0) {
+				res = __connmanctl_dbus_set_property(connection,
+						path, "net.connman.Service",
+						config_return,
+						g_strdup(service_name),
+						"MultipathRouting",
+						DBUS_TYPE_BOOLEAN, &val);
+			}
+			break;
 		default:
 			res = -EINVAL;
 			break;
@@ -2185,6 +2210,7 @@ static struct connman_option config_options[] = {
 	{"proxy", 'x', "direct|auto <URL>|manual <URL1> [<URL2>] [...]\n"
 	               "\t\t\t[exclude <exclude1> [<exclude2>] [...]]"},
 	{"autoconnect", 'a', "yes|no"},
+	{"mpath_routing", 'M', "yes|no"},
 	{"ipv4", 'i', "off|dhcp|manual <address> <netmask> <gateway>"},
 	{"remove", 'r', "                 Remove service"},
 	{ NULL, }

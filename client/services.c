@@ -39,6 +39,7 @@ static void print_service(char *path, DBusMessageIter *iter)
 {
 	char *name = "", *str = NULL;
 	int autoconn = 0, favorite = 0, count = 0;
+	int mpath_routing = 0;
 	char *property;
 	char state = ' ';
 	DBusMessageIter entry, val;
@@ -79,6 +80,10 @@ static void print_service(char *path, DBusMessageIter *iter)
 			dbus_message_iter_next(&entry);
 			dbus_message_iter_recurse(&entry, &val);
 			dbus_message_iter_get_basic(&val, &favorite);
+		} else if (strcmp(property, "MultipathRouting") == 0) {
+			dbus_message_iter_next(&entry);
+			dbus_message_iter_recurse(&entry, &val);
+			dbus_message_iter_get_basic(&val, &mpath_routing);
 		}
 
 		count++;
@@ -92,8 +97,10 @@ static void print_service(char *path, DBusMessageIter *iter)
 		str = path;
 
 	if (count > 0)
-		fprintf(stdout, "%c%c%c %-20s %s", favorite != 0 ? '*' : ' ',
-				autoconn != 0 ? 'A' : ' ', state, name, str);
+		fprintf(stdout, "%c%c%c%c %-20s %s", favorite != 0 ? '*' : ' ',
+				autoconn != 0 ? 'A' : ' ',
+				mpath_routing != 0 ? 'M' : ' ',
+				state, name, str);
 	else
 		fprintf(stdout, "%-24s %s", "unchanged", str);
 
