@@ -23,6 +23,6 @@ properties = service.GetProperties()
 
 print "Setting multipath state for %s to %s" % (sys.argv[2], sys.argv[1])
 
-service.SetProperty("Multipath", make_variant(sys.argv[2]))
+service.SetProperty("MultipathTcpLink", make_variant(sys.argv[2]))
 
 print

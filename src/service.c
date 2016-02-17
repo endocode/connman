@@ -612,7 +612,7 @@ static int service_load(struct connman_service *service)
 				service->identifier, "MultipathRouting", NULL);
 
 	str = g_key_file_get_string(keyfile,
-				service->identifier, "Multipath", NULL);
+				service->identifier, "MultipathTcpLink", NULL);
 	if (str)
 		service->mpath = string2mpathstate(str);
 
@@ -810,7 +810,7 @@ static int service_save(struct connman_service *service)
 	cst_str = mpathstate2string(service->mpath);
 	if (cst_str)
 		g_key_file_set_string(keyfile, service->identifier,
-				      "Multipath", cst_str);
+				      "MultipathTcpLink", cst_str);
 
 	if (service->mpath_routing)
 		g_key_file_set_boolean(keyfile, service->identifier,
@@ -2401,7 +2401,7 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 
 	str = mpathstate2string(service->mpath);
 	if (str)
-		connman_dbus_dict_append_basic(dict, "Multipath",
+		connman_dbus_dict_append_basic(dict, "MultipathTcpLink",
 						DBUS_TYPE_STRING, &str);
 
 	if (service->favorite)
@@ -3748,7 +3748,7 @@ static DBusMessage *set_property(DBusConnection *conn,
 		}
 
 		service_save(service);
-	} else if (g_str_equal(name, "Multipath")) {
+	} else if (g_str_equal(name, "MultipathTcpLink")) {
 		const char *state;
 		struct connman_device *device;
 		int if_index;

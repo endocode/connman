@@ -60,7 +60,7 @@ def print_services(services):
 				autoconnect,
 				state,
 				monitortimeout,
-				properties.get("Multipath", "unknown"),
+				properties.get("MultipathTcpLink", "unknown"),
 				name,
 				identifier
 		)
