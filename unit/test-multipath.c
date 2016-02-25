@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <ifaddrs.h>
 #include <linux/fib_rules.h>
 #include <net/if.h>
@@ -564,6 +565,7 @@ static int test_teardown()
 int main(int argc, char *argv[])
 {
 	int ret;
+	struct stat s;
 
 	g_test_init(&argc, &argv, NULL);
 
@@ -572,7 +574,11 @@ int main(int argc, char *argv[])
 			"Unit Tests Multipath", VERSION);
 #endif
 
-	g_test_add_func("/multipath/test_state", test_state_transition);
+
+	if (stat("/proc/sys/net/mptcp/mptcp_enabled", &s) == 0) {
+		/* to run only under mptcp kernel */
+		g_test_add_func("/multipath/test_state", test_state_transition);
+	}
 
 	test_setup();
 	g_test_add_func("/multipath/test_multipath_config_ipv4",
