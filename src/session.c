@@ -525,9 +525,6 @@ static int init_mpath_routing_rules(struct connman_session *session)
 {
 	GSList *it;
 
-	if (!session->policy_routing)
-		return 0;
-
 	for (it = session->mpath_services; it; it = it->next) {
 		struct connman_service *service = it->data;
 
@@ -546,9 +543,6 @@ static int init_mpath_routing_rules(struct connman_session *session)
 static int clear_mpath_routing_rules(struct connman_session *session)
 {
 	GSList *it;
-
-	if (!session->policy_routing)
-		return 0;
 
 	for (it = session->mpath_services; it; it = it->next) {
 		struct connman_service *service = it->data;
