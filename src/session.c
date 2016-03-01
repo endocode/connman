@@ -563,6 +563,36 @@ static int clear_mpath_routing_rules(struct connman_session *session)
 	return 0;
 }
 
+static bool assign_mpath_service_rules(struct connman_session *session,
+					struct connman_service *service)
+{
+	GSList *it;
+
+	DBG("");
+
+	for (it = session->mpath_services; it; it = it->next) {
+		struct connman_service *srv = it->data;
+
+		if (service == srv)
+			return false;
+	}
+
+	session->mpath_services = g_slist_append(
+					session->mpath_services,
+					GINT_TO_POINTER(service)
+	);
+
+	add_mpath_service_rule(session, service, AF_INET);
+	add_mpath_service_rule(session, service, AF_INET6);
+
+	session->mpath_services_event = true;
+
+	DBG("added one multipath service rule");
+
+	return true;
+
+}
+
 /* Deletes all rules for this service in sessions that have it. */
 static int del_mpath_service_rules(struct connman_service *service)
 {
@@ -2134,6 +2164,7 @@ static void session_activate(struct connman_session *session)
 {
 	GHashTableIter iter;
 	gpointer key, value;
+	bool activated = false;
 
 	if (!service_hash)
 		return;
@@ -2149,13 +2180,19 @@ static void session_activate(struct connman_session *session)
 				session_match_service(session, info->service)) {
 			DBG("session %p add service %p", session, info->service);
 
-			info->sessions = g_slist_prepend(info->sessions,
-							session);
-			session->service = info->service;
-			update_session_state(session);
+			if (!activated) {
+				info->sessions = g_slist_prepend(info->sessions,
+								session);
+				session->service = info->service;
+				update_session_state(session);
 
-			return;
+				activated = true;
+			} else {
+				assign_mpath_service_rules(session, info->service);
+			}
 		}
+
+
 	}
 
 	session_notify(session);
@@ -2192,8 +2229,10 @@ static void handle_service_state_online(struct connman_service *service,
 	while (g_hash_table_iter_next(&iter, &key, &value)) {
 		struct connman_session *session = value;
 		bool connected;
+		bool service_allowed;
 
 		connected = is_session_connected(session, state);
+		service_allowed = session_match_service(session, service);
 
 		if (session->service == service) {
 			if (!connected) {
@@ -2203,7 +2242,7 @@ static void handle_service_state_online(struct connman_service *service,
 				session->service = NULL;
 				update_session_state(session);
 			}
-		} else if (connected && session_match_service(session, service)) {
+		} else if (connected && service_allowed) {
 			DBG("session %p add service %p", session, service);
 
 			info->sessions = g_slist_prepend(info->sessions,
@@ -2211,6 +2250,9 @@ static void handle_service_state_online(struct connman_service *service,
 			session->service = service;
 			update_session_state(session);
 		}
+
+		if (service_allowed)
+			assign_mpath_service_rules(session, service);
 	}
 }
 
