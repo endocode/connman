@@ -570,6 +570,9 @@ static bool assign_mpath_service_rules(struct connman_session *session,
 
 	DBG("");
 
+	if (!connman_service_multipath_routing(service))
+		return false;
+
 	for (it = session->mpath_services; it; it = it->next) {
 		struct connman_service *srv = it->data;
 
@@ -1019,6 +1022,12 @@ static int parse_mpath_service(const char *token, GSList **list)
 		connman_warn("MultipathRoutedServices: service %s not found",
 			     token);
 		return -ENOENT;
+	}
+
+	if (!connman_service_multipath_routing(service)) {
+		connman_warn("MultipathRoutedServices: service %s does not "
+		             "have MultipathRouting enabled", token);
+		return -EINVAL;
 	}
 
 	*list = g_slist_append(*list, GINT_TO_POINTER(service));
