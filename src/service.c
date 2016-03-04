@@ -113,6 +113,7 @@ struct connman_service {
 	DBusMessage *provider_pending;
 	guint timeout;
 	guint monitor_timeout;
+	guint monitor_timeout_id;
 	struct connman_stats stats;
 	struct connman_stats stats_roaming;
 	GHashTable *counter_table;
@@ -3017,9 +3018,11 @@ const char *__connman_service_get_passphrase(struct connman_service *service)
 
 static void set_monitor_timeout(struct connman_service *service)
 {
-	g_timeout_add_seconds(service->monitor_timeout,
-			      monitor_timeout_triggered,
-			      connman_service_ref(service));
+	service->monitor_timeout_id = g_timeout_add_seconds(
+					service->monitor_timeout,
+					monitor_timeout_triggered,
+					connman_service_ref(service)
+	);
 }
 
 static DBusMessage *get_properties(DBusConnection *conn,
@@ -3839,8 +3842,16 @@ static void remove_timeout(struct connman_service *service)
 
 static void remove_monitor_timeout(struct connman_service *service)
 {
-	if (service->monitor_timeout > 0)
-		service->monitor_timeout = 0;
+	DBG("service %p monitor_timeout: %d id: %d",
+		service, service->monitor_timeout, service->monitor_timeout_id
+	);
+
+	if (!service->monitor_timeout_id)
+		return;
+
+	connman_service_unref(service);
+	g_source_remove(service->monitor_timeout_id);
+	service->monitor_timeout_id = 0;
 }
 
 static void reply_pending(struct connman_service *service, int error)
@@ -5670,17 +5681,11 @@ static int service_indicate_state(struct connman_service *service)
 
 	case CONNMAN_SERVICE_STATE_ASSOCIATION:
 		/* READY/ONLINE -> ASSOCIATION transition */
-		if (old_state == CONNMAN_SERVICE_STATE_READY ||
-				old_state == CONNMAN_SERVICE_STATE_ONLINE)
-			remove_monitor_timeout(service);
 
 		break;
 
 	case CONNMAN_SERVICE_STATE_CONFIGURATION:
 		/* READY/ONLINE -> CONFIGURATION transition */
-		if (old_state == CONNMAN_SERVICE_STATE_READY ||
-				old_state == CONNMAN_SERVICE_STATE_ONLINE)
-			remove_monitor_timeout(service);
 
 		if (!service->new_service &&
 				__connman_stats_service_register(service) == 0) {
@@ -5768,7 +5773,6 @@ static int service_indicate_state(struct connman_service *service)
 		set_error(service, CONNMAN_SERVICE_ERROR_UNKNOWN);
 
 		reply_pending(service, ECONNABORTED);
-		remove_monitor_timeout(service);
 
 		def_service = __connman_service_get_default();
 
@@ -5923,9 +5927,8 @@ static void connman_check_online(struct connman_service *service,
 	if (service->monitor_timeout > 0) {
 		/* do not initiate WISPr authentication, but sleep
 		 * until monitor_timeout has expired. */
-		g_timeout_add_seconds(service->monitor_timeout,
-				      monitor_timeout_triggered,
-				      connman_service_ref(service));
+		remove_monitor_timeout(service);
+		set_monitor_timeout(service);
 	}
 
 	/* As monitor_timeout expired, continue to do normal WISPr prcess. */
@@ -6076,16 +6079,18 @@ static gboolean monitor_timeout_triggered(gpointer user_data)
 	int ret = 0;
 
 	connman_service_unref(service);
-	if (refcount == 0) {
+
+	if (refcount == 0 || !service->monitor_timeout) {
 		DBG("Service %p already removed", service);
 		return G_SOURCE_REMOVE;
 	}
 
-	/* This check is necessary for checking the case where the DBUS
-	 * property MonitorTimeout is set to 0 by users, during the
-	 * monitoring loop. */
-	if (service->monitor_timeout == 0) {
-		DBG("monitor timeout is disabled, stopping link monitoring...");
+	switch (service->state) {
+	case CONNMAN_SERVICE_STATE_READY:
+	case CONNMAN_SERVICE_STATE_ONLINE:
+		break;
+	default:
+		DBG("Service %p not online/ready, disable link monitor", service);
 		return G_SOURCE_REMOVE;
 	}
 
