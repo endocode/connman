@@ -464,11 +464,6 @@ static int add_mpath_service_rule(struct connman_session *session,
 	enum connman_ipconfig_type type = CONNMAN_IPCONFIG_TYPE_UNKNOWN;
 	int err;
 
-	if (!connman_service_multipath_routing(service)) {
-		DBG("no mpath routing");
-		return 0;
-	}
-
 	if (family == AF_INET)
 		type = CONNMAN_IPCONFIG_TYPE_IPV4;
 	else if (family == AF_INET6)
