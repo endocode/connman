@@ -2188,12 +2188,13 @@ static void session_activate(struct connman_session *session)
 				info->sessions = g_slist_prepend(info->sessions,
 								session);
 				session->service = info->service;
-				update_session_state(session);
 
 				activated = true;
 			} else {
 				assign_mpath_service_rules(session, info->service);
 			}
+
+			update_session_state(session);
 		}
 
 
@@ -2255,8 +2256,10 @@ static void handle_service_state_online(struct connman_service *service,
 			update_session_state(session);
 		}
 
-		if (service_allowed)
+		if (service_allowed) {
 			assign_mpath_service_rules(session, service);
+			update_session_state(session);
+		}
 	}
 }
 
