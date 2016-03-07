@@ -520,6 +520,20 @@ static void test_multipath_config_ipv6(void)
 	g_assert(clear == 0);
 }
 
+static void test_multipath_config_ipv4_bad_ip(void)
+{
+	int cfg;
+
+	int ifidx = if_nametoindex("dummy0");
+	g_assert(ifidx > 0);
+
+	cfg = __connman_multipath_configure(ifidx, 44,
+				"1.1.1", "1.1.2", 24);
+
+	/* check at end to do config and clear together */
+	g_assert(cfg < 0);
+}
+
 static void test_inet_fwmark_ipv4(void)
 {
 	int ifidx = if_nametoindex("dummy0");
@@ -589,6 +603,8 @@ int main(int argc, char *argv[])
 		test_inet_fwmark_ipv4);
 	g_test_add_func("/multipath/test_inet_fwmark_ipv6",
 		test_inet_fwmark_ipv6);
+	g_test_add_func("/multipath/test_multipath_config_bad_ip",
+		test_multipath_config_ipv4_bad_ip);
 
 	ret = g_test_run();
 
