@@ -5929,6 +5929,8 @@ static void connman_check_online(struct connman_service *service,
 		 * until monitor_timeout has expired. */
 		remove_monitor_timeout(service);
 		set_monitor_timeout(service);
+
+		return;
 	}
 
 	/* As monitor_timeout expired, continue to do normal WISPr prcess. */
