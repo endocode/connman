@@ -3928,6 +3928,19 @@ static bool auto_connect_service(GList *services,
 
 	ignore[CONNMAN_SERVICE_TYPE_VPN] = true;
 
+	/* Connect all multipath routed services. */
+	for (list = services; list; list = list->next) {
+		service = list->data;
+
+		if (service->pending ||
+				is_connecting(service) ||
+				is_connected(service))
+			continue;
+
+		if (!ignore[service->type] && service->mpath_routing)
+			__connman_service_connect(service, reason);
+	}
+
 	for (list = services; list; list = list->next) {
 		service = list->data;
 
