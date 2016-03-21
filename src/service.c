@@ -121,6 +121,7 @@ struct connman_service {
 	bool wps;
 	int online_check_count;
 	bool do_split_routing;
+	bool mpath_routing;
 	bool new_service;
 	bool hidden_service;
 	char *config_file;
@@ -565,6 +566,9 @@ static int service_load(struct connman_service *service)
 
 	g_free(str);
 
+	service->mpath_routing = g_key_file_get_boolean(keyfile,
+				service->identifier, "MultipathRouting", NULL);
+
 	service->proxies = g_key_file_get_string_list(keyfile,
 			service->identifier, "Proxy.Servers", &length, NULL);
 	if (service->proxies && length == 0) {
@@ -748,6 +752,10 @@ static int service_save(struct connman_service *service)
 	} else
 		g_key_file_remove_key(keyfile, service->identifier,
 						"Proxy.Servers", NULL);
+
+	if (service->mpath_routing)
+		g_key_file_set_boolean(keyfile, service->identifier,
+					"MultipathRouting", TRUE);
 
 	if (service->excludes) {
 		guint len = g_strv_length(service->excludes);
@@ -2313,6 +2321,10 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 	connman_dbus_dict_append_basic(dict, "Immutable",
 					DBUS_TYPE_BOOLEAN, &val);
 
+	val = service->mpath_routing;
+	connman_dbus_dict_append_basic(dict, "MultipathRouting",
+				DBUS_TYPE_BOOLEAN, &val);
+
 	if (service->favorite)
 		val = service->autoconnect;
 	else
@@ -3224,6 +3236,17 @@ static int multipath_add_service_table(struct connman_ipconfig *ipconfig,
 	return 0;
 }
 
+static void multipath_add_service_tables(struct connman_service *service)
+{
+	int ifindex = __connman_service_get_index(service);
+
+	if (is_connected_state(service, service->state_ipv4))
+		multipath_add_service_table(service->ipconfig_ipv4, ifindex);
+
+	if (is_connected_state(service, service->state_ipv6))
+		multipath_add_service_table(service->ipconfig_ipv6, ifindex);
+}
+
 static int multipath_del_service_table(struct connman_ipconfig *ipconfig,
 						int ifindex)
 {
@@ -3248,6 +3271,17 @@ static int multipath_del_service_table(struct connman_ipconfig *ipconfig,
 	__connman_ipconfig_set_mpath_table(ipconfig, 0);
 
 	return 0;
+}
+
+static void multipath_del_service_tables(struct connman_service *service)
+{
+	int ifindex = __connman_service_get_index(service);
+
+	if (service->ipconfig_ipv4)
+		multipath_del_service_table(service->ipconfig_ipv4, ifindex);
+
+	if (service->ipconfig_ipv6)
+		multipath_del_service_table(service->ipconfig_ipv6, ifindex);
 }
 
 int __connman_service_reset_ipconfig(struct connman_service *service,
@@ -3620,6 +3654,24 @@ static DBusMessage *set_property(DBusConnection *conn,
 		}
 
 		service_save(service);
+	} else if (g_str_equal(name, "MultipathRouting")) {
+		dbus_bool_t mpath_routing;
+
+		if (type != DBUS_TYPE_BOOLEAN)
+			return __connman_error_invalid_arguments(msg);
+
+		dbus_message_iter_get_basic(&value, &mpath_routing);
+
+		if (service->mpath_routing && !mpath_routing)
+			/* delete only if they were there before */
+			multipath_del_service_tables(service);
+		else if (!service->mpath_routing && mpath_routing)
+			/* add if state wasn't already on */
+			multipath_add_service_tables(service);
+
+		service->mpath_routing = mpath_routing;
+		service_save(service);
+
 	} else
 		return __connman_error_invalid_property(msg);
 
@@ -4737,6 +4789,8 @@ static void service_initialize(struct connman_service *service)
 	service->provider = NULL;
 
 	service->wps = false;
+
+	service->mpath_routing = false;
 }
 
 /**
