@@ -92,6 +92,10 @@ DNS server, then you can use the \fB--nodnsproxy\fP option.
 If this option is used, then ConnMan is not able to cache the DNS queries
 because the DNS traffic is not going through ConnMan and that can cause
 some extra network traffic.
+.TP
+.BR \-M ", " \-\-mpathrouting
+Turn on multipath routing by default on all services. This sets the
+MultipathRouting flag to on.
 .SH SEE ALSO
 .BR connmanctl (1), \ connman.conf (5), \ connman-service.config (5), \c
 .BR \ connman-vpn (8)

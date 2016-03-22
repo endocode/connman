@@ -493,3 +493,10 @@ Properties	string State [readonly]
 				Possible values are "half" and "full".
 
 				This information is not available.
+
+		bool MultipathRouting [readwrite]
+
+			If set to true it will generate a source ip based
+			routing table when service goes to READY state. When
+			turned off the tables will be deleted. When turned on,
+			they will appear if service is in state READY or ONLINE.
